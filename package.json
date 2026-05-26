@@ -4,16 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "dev": "tsx server/index.ts",
+    "build": "vite build --config client/vite.config.ts && esbuild server/index.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:client": "vite build --config client/vite.config.ts",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
-    "preview": "vite preview",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "preview": "vite preview --config client/vite.config.ts",
+    "clean": "rm -rf dist client/dist",
+    "lint": "tsc --noEmit -p client/tsconfig.json && tsc --noEmit -p server/tsconfig.json"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
-    "@google/generative-ai": "^0.24.1",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "cloudinary": "^2.10.0",
