@@ -28,7 +28,7 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
   const [showPassword, setShowPassword] = React.useState(false);
   const [passwordValidation, setPasswordValidation] = React.useState({
     length: false,
-    : false,
+    letter: false,
     number: false,
   });
 
@@ -37,7 +37,7 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
   const validatePassword = (pass: string) => {
     setPasswordValidation({
       length: pass.length >= 8,
-      : /[A-Z]/.test(pass),
+      letter: /[A-Z]/.test(pass),
       number: /[0-9]/.test(pass),
     });
   };
@@ -48,7 +48,7 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
     validatePassword(val);
   };
 
-  const isPasswordValid = passwordValidation.length && passwordValidation. && passwordValidation.number;
+  const isPasswordValid = passwordValidation.length && passwordValidation.letter && passwordValidation.number;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -391,7 +391,7 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
                 <div className={`flex items-center gap-2 text-[9px] font-bold   ${passwordValidation.length ? 'text-green-500' : 'text-muted'}`}>
                   <CheckCircle2 size={12} /> 8+ Characters
                 </div>
-                <div className={`flex items-center gap-2 text-[9px] font-bold   ${passwordValidation. ? 'text-green-500' : 'text-muted'}`}>
+                <div className={`flex items-center gap-2 text-[9px] font-bold   ${passwordValidation.letter ? 'text-green-500' : 'text-muted'}`}>
                   <CheckCircle2 size={12} />  Letter
                 </div>
                 <div className={`flex items-center gap-2 text-[9px] font-bold   ${passwordValidation.number ? 'text-green-500' : 'text-muted'}`}>

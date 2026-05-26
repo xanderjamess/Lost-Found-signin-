@@ -256,7 +256,7 @@ export default function AdminDashboard({
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-lg text-[10px] font-bold  tracking-wider ${
-                        u.role === 'admin' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-slate-100 text-muted border ring-border'
+                        u.role === 'admin' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-surface-raised text-muted border ring-border'
                       }`}>
                         {u.role}
                       </span>
@@ -293,7 +293,7 @@ export default function AdminDashboard({
                             <UserMinus size={18} />
                           </button>
                         )}
-                        <button className="p-2 text-muted hover:text-muted hover:bg-slate-100 rounded-lg transition-all">
+                        <button className="p-2 text-muted hover:text-muted hover:bg-surface-raised rounded-lg transition-all">
                           <MoreVertical size={18} />
                         </button>
                       </div>
@@ -749,7 +749,7 @@ export default function AdminDashboard({
                               <img src={item?.imageUrl} alt="" className="w-10 h-10 rounded-lg mr-3 object-cover" referrerPolicy="no-referrer" />
                               <div>
                                 <p className="text-sm font-bold text-fg">{item?.title}</p>
-                                <p className="text-[10px] text-muted   font-mono">Ref: {item?.id.to()}</p>
+                                <p className="text-[10px] text-muted   font-mono">Ref: {item?.id}</p>
                               </div>
                             </div>
                           </td>

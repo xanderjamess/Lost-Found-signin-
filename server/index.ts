@@ -42,8 +42,8 @@ async function startServer() {
       if (req.path.startsWith("/api")) {
         return res.status(404).json({ error: `API route not found: ${req.originalUrl}` });
       }
-      const htmlFile = req.path.includes("admin") ? "admin.html" : "index.html";
-      res.sendFile(path.join(clientDist, htmlFile));
+      // Serve index.html for all non-API routes so the SPA handles routing (including /admin)
+      res.sendFile(path.join(clientDist, 'index.html'));
     });
   }
 

@@ -16,6 +16,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import LoadingScreen from "./components/LoadingScreen";
 import SearchPage from "./pages/SearchPage";
 import ReportPage from "./pages/ReportPage";
+import NotFound from "./components/NotFound";
 import { useAuth } from "./contexts/AuthContext";
 import { filterItems } from "./lib/filterItems";
 import { useFirestoreOffline } from "./hooks/useFirestoreOffline";
@@ -99,6 +100,7 @@ export default function AppContent() {
   const handleReportSubmitAndClose = async (data: Record<string, unknown>) => {
     const ok = await handleReportSubmit(data);
     if (ok) setShowReportForm(null);
+    return ok;
   };
 
   const filteredItems = filterItems(items, searchQuery, selectedCategory, selectedStatus);
@@ -192,6 +194,15 @@ export default function AppContent() {
               onUpdateUser={handleUpdateUser}
               onDeleteUser={handleDeleteUser}
               initialTab={adminTab}
+            />
+          )}
+
+          {currentPage === 'not-found' && (
+            <NotFound
+              onBack={() => {
+                setCurrentPage('home');
+                window.history.replaceState(null, '', '/');
+              }}
             />
           )}
 

@@ -228,8 +228,8 @@ export default function ClaimedItemsHistory({
                           <p className="text-sm font-bold text-fg group-hover:text-primary transition-colors">{item.title}</p>
                           <div className="flex flex-col mt-1 space-y-0.5">
                             <div className="flex items-center">
-                              <span className="text-[9px] text-muted  font-black tracking-tighter mr-2">Ref: {item.id.to()}</span>
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-muted rounded text-[9px] font-bold  tracking-wider">{item.category}</span>
+                              <span className="text-[9px] text-muted  font-black tracking-tighter mr-2">Ref: {item.id}</span>
+                              <span className="px-1.5 py-0.5 bg-surface-raised text-muted rounded text-[9px] font-bold  tracking-wider">{item.category}</span>
                             </div>
                             {item.claimedBy && (
                               <div className="flex items-center">
@@ -271,7 +271,7 @@ export default function ClaimedItemsHistory({
                       <div className="flex flex-col gap-1.5">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold   border ${
                           item.isArchived 
-                            ? 'bg-slate-100 text-muted ring-border' 
+                            ? 'bg-surface-raised text-muted ring-border' 
                             : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                         }`}>
                           {item.isArchived ? 'Archived' : 'Successfully Claimed'}

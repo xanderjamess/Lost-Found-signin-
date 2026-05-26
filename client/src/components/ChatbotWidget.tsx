@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageCircle, X, Send, Bot, User as UserIcon, List, Search, Clock } from 'lucide-react';
+import { MessageCircle, X, Send, Bot, List, Search, Clock } from 'lucide-react';
 import { chatWithAI } from '../services/aiService';
 import { api } from '../lib/api';
 import { User } from '../types';
@@ -12,206 +12,196 @@ interface ChatbotWidgetProps {
 
 export default function ChatbotWidget({ user, onNavigate }: ChatbotWidgetProps) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [messages, setMessages] = React.useState<{ role: 'user' | 'model', content: string }[]>([
-    { role: 'model', content: "Hi! I'm your Campus Lost & Found assistant. How can I help you today?" }
+  const [messages, setMessages] = React.useState<{ role: 'user' | 'model'; content: string }[]>([
+    { role: 'model', content: 'How can I help?' },
   ]);
   const [input, setInput] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
-  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
-    if (user && user.role === 'student') {
-      const fetchHistory = async () => {
-        try {
-          const history = await api.getChatHistory(user.id);
-          if (history.length > 0) {
-            setMessages(history);
-          }
-        } catch (error) {
-          console.error("Failed to fetch chat history:", error);
+    if (!user || user.role !== 'student') return;
+    const fetchHistory = async () => {
+      try {
+        const history = await api.getChatHistory(user.id);
+        if (Array.isArray(history) && history.length) {
+          setMessages(
+            history.map((h: any) => ({ role: h.role, content: stripMarkdown(String(h.content || '')) }))
+          );
         }
-      };
-      fetchHistory();
-    }
+      } catch (e) {
+        console.error('Failed to load chat history', e);
+      }
+    };
+    fetchHistory();
   }, [user]);
 
   React.useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isOpen]);
-
-  React.useEffect(() => {
-    const handleOpenChat = () => {
-      setIsOpen(true);
-    };
-    window.addEventListener('open-campus-chat', handleOpenChat);
-    return () => {
-      window.removeEventListener('open-campus-chat', handleOpenChat);
-    };
-  }, []);
 
   if (user && user.role !== 'student') return null;
 
-  const saveHistory = async (newMessages: { role: 'user' | 'model', content: string }[]) => {
-    if (!user) return;
-    try {
-      await api.saveChatHistory(user.id, newMessages);
-    } catch (error) {
-      console.error("Failed to save chat history:", error);
-    }
-  };
+  const quickActions = [
+    { label: 'Lost', icon: <List size={14} />, msg: 'How do I report a lost item?' },
+    { label: 'Found', icon: <Search size={14} />, msg: "I found an item, what next?" },
+    { label: 'Claim', icon: <Clock size={14} />, msg: 'How can I claim an item?' },
+  ];
 
-  const handleSend = async (customMessage?: string) => {
-    const userMessage = customMessage || input.trim();
-    if (!userMessage || isLoading) return;
+  const handleSend = async (custom?: string) => {
+    const text = (custom ?? input).trim();
+    if (!text || isLoading) return;
+    if (!custom) setInput('');
 
-    if (!customMessage) setInput('');
-    
-    const updatedMessages = [...messages, { role: 'user' as const, content: userMessage }];
-    setMessages(updatedMessages);
+    const updated = [...messages, { role: 'user', content: text }];
+    setMessages(updated);
     setIsLoading(true);
-
     try {
-      const historyForAI = updatedMessages.map(m => ({
-        role: m.role as 'user' | 'model',
-        parts: [{ text: m.content }]
-      }));
-
-      const firstUserIndex = historyForAI.findIndex(h => h.role === 'user');
-      const filteredHistory = firstUserIndex === -1 ? [] : historyForAI.slice(firstUserIndex, -1);
-
-      const response = await chatWithAI(userMessage, filteredHistory);
-      const finalMessages = [...updatedMessages, { role: 'model' as const, content: response }];
+      const historyForAI = updated.map((m) => ({ role: m.role, parts: [{ text: m.content }] }));
+      const firstUserIndex = historyForAI.findIndex((h) => h.role === 'user');
+      const filtered = firstUserIndex === -1 ? [] : historyForAI.slice(firstUserIndex, -1);
+      const resp = await chatWithAI(text, filtered);
+      const cleaned = stripMarkdown(String(resp || ''));
+      const finalMessages = [...updated, { role: 'model', content: cleaned }];
       setMessages(finalMessages);
-      saveHistory(finalMessages);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', content: "Sorry, I hit a snag. Could you try again?" }]);
+      await saveHistory(finalMessages);
+    } catch (e) {
+      setMessages((p) => [...p, { role: 'model', content: 'Sorry, something went wrong.' }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const quickActions = [
-    { label: "Lost Item", icon: <List size={14} />, action: () => { handleSend("Step-by-step: How do I report a lost item?"); setIsOpen(true); } },
-    { label: "Found Item", icon: <Search size={14} />, action: () => { handleSend("I just found someone's stuff. What do I do now?"); } },
-    { label: "Claiming Help", icon: <Clock size={14} />, action: () => { handleSend("How can I prove an item is mine?"); } },
-    { label: "Admin Workflow", icon: <Bot size={14} />, action: () => { handleSend("Explain the manual approval process."); } },
-  ];
+  const saveHistory = async (newMessages: { role: 'user' | 'model'; content: string }[]) => {
+    if (!user) return;
+    try {
+      await api.saveChatHistory(user.id, newMessages);
+    } catch (e) {
+      console.error('Failed to save chat history', e);
+    }
+  };
+
+  function stripMarkdown(text: string) {
+    if (!text) return '';
+    let out = text.replace(/```[\s\S]*?```/g, '');
+    out = out.replace(/`([^`]+)`/g, '$1');
+    out = out.replace(/\*\*(.*?)\*\*/g, '$1');
+    out = out.replace(/\*(.*?)\*/g, '$1');
+    out = out.replace(/__(.*?)__/g, '$1');
+    out = out.replace(/_(.*?)_/g, '$1');
+    out = out.replace(/^#{1,6}\s*/gm, '');
+    out = out.replace(/!\[(.*?)\]\((.*?)\)/g, '$1');
+    out = out.replace(/\[(.*?)\]\((.*?)\)/g, '$1');
+    out = out.replace(/^[\s]*[-*+]\s+/gm, '• ');
+    out = out.replace(/\n{2,}/g, '\n');
+    return out.trim();
+  }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[60] font-sans">
+    <div className="fixed bottom-4 right-4 z-[60] font-sans sm:bottom-6 sm:right-6">
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.9, transformOrigin: 'bottom right' }}
+            initial={{ opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="mb-4 w-[350px] sm:w-[400px] h-[550px] bg-surface rounded-3xl  border ring-border flex flex-col overflow-hidden"
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            className="mb-4 flex h-[min(520px,calc(100vh-6rem))] w-[calc(100vw-2rem)] max-w-[480px] flex-col overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-lg sm:w-[480px] md:h-[600px]"
           >
-            <div className="bg-primary p-4 text-primary-fg flex items-center justify-between ">
+            <div className="flex items-center justify-between px-5 py-3 bg-transparent">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-surface/20 rounded-xl flex items-center justify-center ">
-                  <Bot size={24} />
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/10">
+                  <Bot size={20} />
                 </div>
                 <div>
-                  <h3 className="font-sans font-bold text-sm leading-tight">Campus Assistant</h3>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-                    <span className="text-[10px] font-medium text-primary-fg/70">AI Powered • Personalized</span>
-                  </div>
+                  <div className="text-base font-semibold text-fg">Campus Assistant</div>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-surface/10 rounded-lg transition-colors"
+                aria-label="Close chat"
+                className="rounded-md p-2 text-muted transition-colors hover:bg-surface/10 hover:text-fg"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div 
-              ref={scrollRef}
-              className="flex-grow p-4 overflow-y-auto space-y-4 bg-bg/50"
-            >
+            <div ref={scrollRef} className="flex-grow space-y-3 overflow-y-auto bg-bg/10 px-5 py-5">
               {messages.map((m, i) => (
-                <div 
-                  key={i}
-                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${
-                    m.role === 'user' 
-                      ? 'bg-primary text-primary-fg rounded-tr-none' 
-                      : 'bg-surface text-fg shadow-sm border ring-border rounded-tl-none'
-                  }`}>
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-[80%] whitespace-pre-line rounded-2xl px-4 py-2 text-sm leading-6 ${
+                      m.role === 'user'
+                        ? 'rounded-br-md bg-primary text-primary-fg shadow-sm'
+                        : 'rounded-bl-md bg-surface text-fg ring-1 ring-border'
+                    }`}
+                  >
                     {m.content}
                   </div>
                 </div>
               ))}
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-surface p-3 rounded-2xl rounded-tl-none shadow-sm border ring-border flex gap-1 items-center">
-                    <span className="w-1.5 h-1.5 bg-surface-raised rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                    <span className="w-1.5 h-1.5 bg-surface-raised rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                    <span className="w-1.5 h-1.5 bg-surface-raised rounded-full animate-bounce"></span>
-                  </div>
+                  <div className="rounded-2xl rounded-bl-md bg-surface-raised px-4 py-2 text-sm text-muted">Thinking…</div>
                 </div>
               )}
             </div>
 
-            <div className="px-4 py-2 bg-surface flex gap-2 overflow-x-auto no-scrollbar border-t ring-border">
-              {quickActions.map((qa, i) => (
-                <button
-                  key={i}
-                  onClick={qa.action}
-                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-bg hover:bg-primary/5 hover:text-primary text-muted rounded-full text-[11px] font-bold border ring-border transition-all"
-                >
-                  {qa.icon}
-                  {qa.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-3 border-t border-border bg-surface px-5 py-3">
+              <div className="flex gap-2">
+                {quickActions.map((qa) => (
+                  <button
+                    key={qa.label}
+                    onClick={() => handleSend(qa.msg)}
+                    title={qa.label}
+                    className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-raised hover:text-fg"
+                  >
+                    {qa.icon}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1" />
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="p-4 bg-surface border-t ring-border">
-              <div className="relative group">
+            <form
+              onSubmit={(e) => {
+                 e.preventDefault();
+                handleSend();
+              }}
+              className="border-t border-border bg-surface px-5 pb-4 pt-3"
+            >
+              <div className="relative">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about items, rules..."
-                  className="w-full pl-4 pr-12 py-3 bg-bg border ring-border rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all"
+                  placeholder="Ask about items..."
+                  className="w-full rounded-lg bg-bg py-2.5 pl-4 pr-14 text-sm text-fg ring-1 ring-border placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
                   disabled={isLoading}
                 />
                 <button
                   type="submit"
                   disabled={isLoading || !input.trim()}
-                  className="absolute right-2 top-1.5 p-1.5 bg-primary text-primary-fg rounded-xl hover:bg-primary/90 transition-all disabled:opacity-50"
+                  className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md bg-primary text-primary-fg transition-opacity disabled:opacity-50 shadow-sm"
                 >
-                  <Send size={18} />
+                  <Send size={16} />
                 </button>
               </div>
-              <p className="text-[10px] text-center text-muted mt-3 flex items-center justify-center gap-1">
-                <span>{user ? `Personalized for ${user.name}` : "Campus Chat Assistant"}</span>
-                <span>•</span>
-                <span>Gemini Pro</span>
-              </p>
+              <div className="mt-3 text-center text-[11px] text-muted">{user ? user.name : 'Campus Chat'}</div>
             </form>
           </motion.div>
         )}
       </AnimatePresence>
 
       <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-2xl flex items-center justify-center  transition-all duration-300 ${
-          isOpen ? 'bg-surface-raised text-fg' : 'bg-primary text-primary-fg hover:opacity-90'
+        whileHover={{ scale: 1.03 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setIsOpen((s) => !s)}
+        className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg shadow-black/15 transition-all duration-200 ${
+          isOpen ? 'border border-border bg-surface-raised text-fg' : 'bg-primary text-primary-fg'
         }`}
       >
-        {isOpen ? <X size={28} /> : <MessageCircle size={28} />}
-        {!isOpen && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full border-2 border-primary-fg animate-bounce"></span>
-        )}
+        {isOpen ? <X size={22} /> : <MessageCircle size={22} />}
       </motion.button>
     </div>
   );

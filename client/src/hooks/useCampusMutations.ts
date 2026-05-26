@@ -65,13 +65,17 @@ export function useCampusMutations({ user, items, users, claims, showToast }: Ca
       if (!user) return false;
 
       try {
-        const newItem = {
+        const newItem: any = {
           ...data,
           reporterId: user.id,
-          imageUrl: (data.imageUrl as string) || `https://picsum.photos/seed/${data.title}/400/300`,
           status: "pending",
           createdAt: new Date().toISOString(),
         };
+
+        // Only include imageUrl if the reporter provided one. Do not auto-fill a placeholder image.
+        if (data.imageUrl && (data.imageUrl as string).trim() !== '') {
+          newItem.imageUrl = data.imageUrl as string;
+        }
 
         const docRef = await addDoc(collection(db, "items"), newItem);
 
@@ -151,7 +155,7 @@ export function useCampusMutations({ user, items, users, claims, showToast }: Ca
       if (!user) return;
 
       try {
-        const verificationId = `VER-${Math.random().toString(36).substr(2, 6).to()}`;
+        const verificationId = `VER-${Math.random().toString(36).substr(2, 6)}`;
         await addDoc(collection(db, "claims"), {
           itemId,
           userId: user.id,

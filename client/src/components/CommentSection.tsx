@@ -98,7 +98,7 @@ export default function CommentSection({
                 className="group"
               >
                 <div className="flex gap-4">
-                  <div className="flex-shrink-0 w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-muted font-bold border-2 border-primary-fg shadow-sm">
+                  <div className="flex-shrink-0 w-10 h-10 bg-surface-raised rounded-full flex items-center justify-center text-muted font-bold border-2 border-primary-fg shadow-sm">
                     {comment.userName.charAt(0)}
                   </div>
                   <div className="flex-grow">
@@ -117,7 +117,7 @@ export default function CommentSection({
                           </span>
                         )}
                         {comment.isHidden && (
-                          <span className="text-[9px] bg-slate-100 text-muted px-1.5 py-0.5 rounded">HIDDEN</span>
+                          <span className="text-[9px] bg-surface-raised text-muted px-1.5 py-0.5 rounded">HIDDEN</span>
                         )}
                       </div>
                       <span className="text-[10px] text-muted">

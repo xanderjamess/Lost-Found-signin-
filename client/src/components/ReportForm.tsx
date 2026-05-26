@@ -9,7 +9,7 @@ interface ReportFormProps {
   type: 'lost' | 'found';
   user: User;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<boolean>;
 }
 
 export default function ReportForm({ type, user, onClose, onSubmit }: ReportFormProps) {
@@ -19,13 +19,15 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
     location: '',
     description: '',
     date: new Date().toISOString().split('T')[0],
-    imageUrl: 'https://picsum.photos/seed/item/400/300',
+    imageUrl: '',
     currentPossession: 'reporter' as 'reporter' | 'csc-office'
   });
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const categories = ['Electronics', 'Personal Items', 'Accessories', 'Books', 'Clothing', 'Other'];
 
@@ -76,6 +78,16 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+
+    // require image for reports (per latest requirement)
+    if (!formData.imageUrl || formData.imageUrl.trim() === '') {
+      setSubmitError('Please upload an image of the item before submitting.');
+      return;
+    }
+
+    if (isUploading) return; // wait for upload to finish
+
     const submissionData = {
       ...formData,
       status: 'pending' as ItemStatus,
@@ -89,7 +101,16 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
       delete (submissionData as any).currentPossession;
     }
 
-    onSubmit(submissionData);
+    (async () => {
+      setIsSubmitting(true);
+      try {
+        await onSubmit(submissionData);
+      } catch (err: any) {
+        setSubmitError(err?.message || 'Failed to submit report.');
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
   };
 
   return (
@@ -110,7 +131,7 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
             <div>
               <p className="text-[10px] font-bold text-muted   mb-1">Reporting as {user.name}</p>
               <h2 className="text-2xl font-bold text-fg">
-                Report <span className={type === 'lost' ? 'text-red-500' : 'text-primary'}>{type.charAt(0).to() + type.slice(1)}</span> Item
+                Report <span className={type === 'lost' ? 'text-red-500' : 'text-primary'}>{type.charAt(0).toUpperCase() + type.slice(1)}</span> Item
               </h2>
             </div>
           </div>
@@ -272,21 +293,26 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
             <button
               type="button"
               onClick={onClose}
-              disabled={isUploading}
+              disabled={isUploading || isSubmitting}
               className="flex-1 btn-muted py-3 sm:py-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isUploading}
+              disabled={isUploading || isSubmitting}
               className={`flex-1 btn-primary py-3 sm:py-4 flex items-center justify-center space-x-2 ${
-                isUploading ? 'opacity-50 cursor-not-allowed' : ''
+                (isUploading || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
               } ${
                 type === 'lost' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-primary hover:bg-primary/95'
               }`}
             >
-              {isUploading ? (
+              {isSubmitting ? (
+                <>
+                  <span className="w-4 h-4 rounded-full border-2 border-primary-fg/20 border-t-white animate-spin"></span>
+                  <span>Submitting…</span>
+                </>
+              ) : isUploading ? (
                 <>
                   <span className="w-4 h-4 rounded-full border-2 border-primary-fg/20 border-t-white animate-spin"></span>
                   <span>Uploading {uploadProgress}%</span>
@@ -296,6 +322,9 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
               )}
             </button>
           </div>
+          {submitError && (
+            <div className="mt-3 p-3 bg-red-50 text-red-600 rounded-2xl text-sm font-medium">{submitError}</div>
+          )}
         </form>
       </motion.div>
     </div>

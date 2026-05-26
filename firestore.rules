@@ -26,7 +26,7 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'xanderjamesmata951@gmail.com' ||
-        request.auth.token.email == 'admin@gmail.com' ||
+        request.auth.token.email == 'sphinxeins@gmail.com' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserDocData(request.auth.uid).role == 'admin')
       );
     }
@@ -86,7 +86,7 @@ service cloud.firestore {
       
       allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && (
                     incoming().role == 'student' ||
-                    (incoming().role == 'admin' && (request.auth.token.email == 'xanderjamesmata951@gmail.com' || request.auth.token.email == 'admin@gmail.com'))
+                    (incoming().role == 'admin' && (request.auth.token.email == 'xanderjamesmata951@gmail.com' || request.auth.token.email == 'sphinxeins@gmail.com'))
                     ) &&
                     incoming().keys().hasAll(['fullName', 'schoolEmail', 'role']) && 
                     incoming().keys().size() >= 3;

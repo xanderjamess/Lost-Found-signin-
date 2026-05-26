@@ -45,7 +45,38 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
         }
       }
 
-      await signInWithEmailAndPassword(auth, email, password);
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+
+      // Ensure we have the user's Firestore profile to check role before navigation.
+      try {
+        const uid = cred.user?.uid || auth.currentUser?.uid;
+        if (uid) {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          const roleFromDb = userDoc.exists() ? (userDoc.data() as any).role : null;
+          const emailFromAuth = cred.user?.email || auth.currentUser?.email || '';
+            if (roleFromDb === 'admin') {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
+              window.history.replaceState(null, '', '/admin');
+            }
+            return;
+          }
+          // fallback: if email matches known admin list, redirect
+          try {
+            const { isUserAdmin } = await import('../lib/admin');
+            if (isUserAdmin({ id: uid, email: emailFromAuth, role: roleFromDb })) {
+              if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
+                window.history.replaceState(null, '', '/admin');
+              }
+              return;
+            }
+          } catch (_) {
+            // ignore
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch user profile after sign-in', err);
+      }
+
       onSuccess();
     } catch (err: any) {
       console.error(err);
@@ -116,6 +147,21 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
           handleFirestoreError(err, OperationType.WRITE, `users/${result.user.uid}`);
         }
       }
+      // After Google sign-in, check role and redirect to admin if appropriate.
+      try {
+        const uid = result.user.uid;
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        const roleFromDb = userDoc.exists() ? (userDoc.data() as any).role : null;
+        if (roleFromDb === 'admin') {
+          if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
+            window.history.replaceState(null, '', '/admin');
+          }
+          return;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch user profile after Google sign-in', err);
+      }
+
       onSuccess();
     } catch (err: any) {
       console.error(err);
@@ -269,14 +315,14 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
         className="card-pad w-full max-w-md"
       >
         {/* Role Toggle */}
-        <div className="mb-8 p-1 bg-slate-100 rounded-xl flex">
+        <div className="mb-8 p-1 bg-surface-raised rounded-xl flex">
           <button
             type="button"
             onClick={() => setRole('student')}
-            className={`flex-1 py-3 rounded-lg text-xs font-bold   transition-all ${
-              role === 'student' 
-                ? 'bg-surface text-primary shadow-sm' 
-                : 'text-muted hover:text-fg'
+            className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${
+              role === 'student'
+                ? 'bg-surface text-primary shadow-sm'
+                : 'text-muted hover:bg-surface hover:text-fg'
             }`}
           >
             Student
@@ -284,10 +330,10 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
           <button
             type="button"
             onClick={() => setRole('admin')}
-            className={`flex-1 py-3 rounded-lg text-xs font-bold   transition-all ${
-              role === 'admin' 
-                ? 'bg-surface text-accent shadow-sm' 
-                : 'text-muted hover:text-fg'
+            className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${
+              role === 'admin'
+                ? 'bg-surface text-accent shadow-sm'
+                : 'text-muted hover:bg-surface hover:text-fg'
             }`}
           >
             Admin

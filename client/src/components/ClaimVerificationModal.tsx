@@ -118,7 +118,7 @@ export default function ClaimVerificationModal({
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
                   <h4 className="text-[10px] font-bold text-primary   mb-1">Item Ref ID</h4>
-                  <p className="text-sm font-mono font-bold text-primary">{item.id.to()}</p>
+                  <p className="text-sm font-mono font-bold text-primary">{item.id}</p>
                 </div>
                 <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
                   <h4 className="text-[10px] font-bold text-emerald-600   mb-1">Verification ID</h4>

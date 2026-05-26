@@ -236,7 +236,7 @@ export default function ItemDetailsModal({
                   </div>
                   <div>
                     <h4 className="text-[10px] font-bold text-muted   mb-0.5">Item Reference ID</h4>
-                    <p className="text-sm font-mono font-bold text-fg">{item.id.to()}</p>
+                    <p className="text-sm font-mono font-bold text-fg">{item.id}</p>
                   </div>
                 </div>
                 <button 

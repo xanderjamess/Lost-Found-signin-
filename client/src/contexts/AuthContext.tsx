@@ -5,6 +5,7 @@ import {
   signOut
 } from 'firebase/auth';
 import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
+import { isUserAdmin } from '../lib/admin';
 import { auth, db } from '../lib/firebase';
 import { handleFirestoreError, OperationType, setFirestoreOnline } from '../lib/firestoreUtils';
 import { User } from '../types';
@@ -42,7 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (!userDoc) {
         console.warn('Using offline fallback user configuration');
-        const role = (firebaseUser.email === 'xanderjamesmata951@gmail.com' || firebaseUser.email === 'admin@gmail.com') ? 'admin' : 'student';
+        const role = isUserAdmin({ id: firebaseUser.uid, email: firebaseUser.email || undefined, role: undefined }) ? 'admin' : 'student';
         setUser({
           id: firebaseUser.uid,
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Authenticated User',
@@ -61,7 +62,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (userDoc && userDoc.exists()) {
         const data = userDoc.data();
-        const role = (firebaseUser.email === 'xanderjamesmata951@gmail.com' || firebaseUser.email === 'admin@gmail.com') ? 'admin' : (data.role || 'student');
+        const role = isUserAdmin({ id: firebaseUser.uid, email: firebaseUser.email || undefined, role: data?.role })
+          ? 'admin'
+          : (data.role || 'student');
         setUser({
           id: firebaseUser.uid,
           name: data.fullName,
@@ -73,7 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           yearLevel: data.yearLevel
         } as any);
       } else {
-        if (firebaseUser.email === 'xanderjamesmata951@gmail.com' || firebaseUser.email === 'admin@gmail.com') {
+        if (isUserAdmin({ id: firebaseUser.uid, email: firebaseUser.email || undefined, role: undefined })) {
           setUser({
             id: firebaseUser.uid,
             name: firebaseUser.displayName || 'Admin User',
