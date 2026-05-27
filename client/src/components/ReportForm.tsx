@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { Camera, X, AlertCircle } from 'lucide-react';
 import { ItemStatus, User } from '../types';
 import { compressImage } from '../lib/imageCompression';
@@ -12,7 +12,12 @@ interface ReportFormProps {
   onSubmit: (data: any) => Promise<boolean>;
 }
 
-export default function ReportForm({ type, user, onClose, onSubmit }: ReportFormProps) {
+export default function ReportForm({
+  type,
+  user,
+  onClose,
+  onSubmit
+}: ReportFormProps) {
   const [formData, setFormData] = useState({
     title: '',
     category: 'Electronics',
@@ -26,86 +31,96 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const categories = ['Electronics', 'Personal Items', 'Accessories', 'Books', 'Clothing', 'Other'];
+  const categories = [
+    'Electronics',
+    'Personal Items',
+    'Accessories',
+    'Books',
+    'Clothing',
+    'Other'
+  ];
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setIsUploading(true);
-      setUploadProgress(0);
-      setUploadError(null);
-      
-      let base64ToUpload = '';
-      try {
-        base64ToUpload = await compressImage(file);
-      } catch (err) {
-        console.error('Failed to compress image:', err);
-        // Fallback to reading file normally if compression fails
-        try {
-          base64ToUpload = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = (e) => reject(e);
-            reader.readAsDataURL(file);
-          });
-        } catch (readErr) {
-          setUploadError('Failed to read image file.');
-          setIsUploading(false);
-          return;
-        }
-      }
 
-      // Pre-populate with local base64 for instant feedback
-      setFormData(prev => ({ ...prev, imageUrl: base64ToUpload }));
+    if (!file) return;
 
-      // Send to backend Cloudinary service
-      try {
-        const secureUrl = await uploadImageToCloudinary(base64ToUpload, (progress) => {
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
+
+    let base64ToUpload = '';
+
+    try {
+      base64ToUpload = await compressImage(file);
+
+      // instant preview
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: base64ToUpload
+      }));
+
+      const secureUrl = await uploadImageToCloudinary(
+        base64ToUpload,
+        (progress) => {
           setUploadProgress(progress);
-        });
-        setFormData(prev => ({ ...prev, imageUrl: secureUrl }));
-        setIsUploading(false);
-      } catch (uploadErr: any) {
-        console.error('Failed to upload image to Cloudinary:', uploadErr);
-        setUploadError(uploadErr.message || 'Image upload failed. Cloudinary credentials may be missing.');
-        setIsUploading(false);
-      }
+        }
+      );
+
+      setFormData((prev) => ({
+        ...prev,
+        imageUrl: secureUrl
+      }));
+    } catch (err: any) {
+      console.error(err);
+      setUploadError(
+        err?.message || 'Failed to upload image.'
+      );
+    } finally {
+      setIsUploading(false);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
     setSubmitError(null);
 
-    // require image for reports (per latest requirement)
-    if (!formData.imageUrl || formData.imageUrl.trim() === '') {
-      setSubmitError('Please upload an image of the item before submitting.');
+    if (!formData.imageUrl) {
+      setSubmitError(
+        'Please upload an image before submitting.'
+      );
       return;
     }
 
-    if (isUploading) return; // wait for upload to finish
+    if (isUploading) return;
 
     const submissionData = {
       ...formData,
       status: 'pending' as ItemStatus,
-      type: type,
+      type,
       date: new Date(formData.date).toISOString()
     };
 
-    // Only include currentPossession for found items
     if (type === 'lost') {
       delete (submissionData as any).currentPossession;
     }
 
     (async () => {
       setIsSubmitting(true);
+
       try {
         await onSubmit(submissionData);
       } catch (err: any) {
-        setSubmitError(err?.message || 'Failed to submit report.');
+        setSubmitError(
+          err?.message || 'Failed to submit report.'
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -113,218 +128,360 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 ">
-      <motion.div 
-        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-0 sm:p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="bg-surface p-6 sm:p-8 w-full max-w-2xl relative overflow-y-auto h-full sm:h-auto sm:max-h-[90vh] sm:rounded-3xl "
+        className="bg-surface w-full max-w-2xl h-full sm:h-auto sm:max-h-[90vh] overflow-y-auto sm:rounded-3xl p-6 sm:p-8"
       >
-        <div className="flex justify-between items-center mb-6 sm:mb-8 border-b ring-border pb-4">
-          <div className="flex items-center space-x-4">
-            <img 
-              src={user.avatar} 
-              alt={user.name} 
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8 border-b border-border pb-4">
+          <div className="flex items-center gap-4">
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-12 h-12 rounded-full object-cover border-2 border-primary/20"
               loading="lazy"
               decoding="async"
-              className="w-12 h-12 rounded-full border-2 border-primary/20"
               referrerPolicy="no-referrer"
             />
+
             <div>
-              <p className="text-[10px] font-bold text-muted   mb-1">Reporting as {user.name}</p>
+              <p className="text-[10px] font-bold text-muted mb-1">
+                Reporting as {user.name}
+              </p>
+
               <h2 className="text-2xl font-bold text-fg">
-                Report <span className={type === 'lost' ? 'text-red-500' : 'text-primary'}>{type.charAt(0).toUpperCase() + type.slice(1)}</span> Item
+                Report{' '}
+                <span
+                  className={
+                    type === 'lost'
+                      ? 'text-red-500'
+                      : 'text-primary'
+                  }
+                >
+                  {type.charAt(0).toUpperCase() +
+                    type.slice(1)}
+                </span>{' '}
+                Item
               </h2>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-muted">
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-slate-100 transition"
+          >
             <X size={24} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Form */}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+          {/* Item + Category */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="text-xs font-bold text-muted  tracking-wider mb-2 block">Item Name</label>
+              <label className="text-xs font-bold text-muted mb-2 block">
+                Item Name
+              </label>
+
               <input
                 type="text"
                 required
-                placeholder="e.g., Blue Hydro Flask"
+                placeholder="e.g. Blue Hydro Flask"
                 className="input-field"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    title: e.target.value
+                  })
+                }
               />
             </div>
+
             <div>
-              <label className="text-xs font-bold text-muted  tracking-wider mb-2 block">Category</label>
+              <label className="text-xs font-bold text-muted mb-2 block">
+                Category
+              </label>
+
               <select
                 required
                 className="input-field"
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    category: e.target.value
+                  })
+                }
               >
-                {categories.map(c => (
-                  <option key={c} value={c}>{c}</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
+          {/* Location + Date */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="text-xs font-bold text-muted  tracking-wider mb-2 block">Location</label>
+              <label className="text-xs font-bold text-muted mb-2 block">
+                Location
+              </label>
+
               <input
                 type="text"
                 required
-                placeholder="e.g., Main Library, Level 3"
+                placeholder="e.g. Main Library"
                 className="input-field"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    location: e.target.value
+                  })
+                }
               />
             </div>
+
             <div>
-              <label className="text-xs font-bold text-muted  tracking-wider mb-2 block">Date</label>
+              <label className="text-xs font-bold text-muted mb-2 block">
+                Date
+              </label>
+
               <input
                 type="date"
                 required
                 className="input-field"
                 value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    date: e.target.value
+                  })
+                }
               />
             </div>
           </div>
 
+          {/* Possession */}
           {type === 'found' && (
-            <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-              <label className="text-xs font-bold text-muted  tracking-wider mb-3 block">Where is the item now?</label>
+            <div>
+              <label className="text-xs font-bold text-muted mb-3 block">
+                Where is the item now?
+              </label>
+
               <div className="grid grid-cols-2 gap-4">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, currentPossession: 'reporter' })}
-                  className={`p-4 rounded-2xl border-2 transition-all text-left group ${
-                    formData.currentPossession === 'reporter' 
-                      ? 'border-primary bg-primary/5 ring-4 ring-primary/10' 
-                      : 'ring-border bg-surface hover:ring-border'
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      currentPossession: 'reporter'
+                    })
+                  }
+                  className={`p-4 rounded-2xl border-2 text-left transition ${
+                    formData.currentPossession ===
+                    'reporter'
+                      ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                      : 'border-border hover:border-slate-300'
                   }`}
                 >
-                  <p className={`font-bold text-sm mb-1 transition-colors ${formData.currentPossession === 'reporter' ? 'text-primary' : 'text-fg'}`}>I have it</p>
-                  <p className="text-[10px] text-muted   font-bold">In my possession</p>
+                  <p className="font-bold text-sm mb-1">
+                    I have it
+                  </p>
+
+                  <p className="text-[10px] text-muted">
+                    In my possession
+                  </p>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, currentPossession: 'csc-office' })}
-                  className={`p-4 rounded-2xl border-2 transition-all text-left group ${
-                    formData.currentPossession === 'csc-office' 
-                      ? 'border-primary bg-primary/5 ring-4 ring-primary/10' 
-                      : 'ring-border bg-surface hover:ring-border'
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      currentPossession: 'csc-office'
+                    })
+                  }
+                  className={`p-4 rounded-2xl border-2 text-left transition ${
+                    formData.currentPossession ===
+                    'csc-office'
+                      ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
+                      : 'border-border hover:border-slate-300'
                   }`}
                 >
-                  <p className={`font-bold text-sm mb-1 transition-colors ${formData.currentPossession === 'csc-office' ? 'text-primary' : 'text-fg'}`}>CSC Office</p>
-                  <p className="text-[10px] text-muted   font-bold">Surrendered to office</p>
+                  <p className="font-bold text-sm mb-1">
+                    CSC Office
+                  </p>
+
+                  <p className="text-[10px] text-muted">
+                    Surrendered to office
+                  </p>
                 </button>
               </div>
             </div>
           )}
 
+          {/* Description */}
           <div>
-            <label className="text-xs font-bold text-muted  tracking-wider mb-2 block">Description</label>
+            <label className="text-xs font-bold text-muted mb-2 block">
+              Description
+            </label>
+
             <textarea
               required
               rows={4}
-              placeholder="Provide a detailed description of the item..."
+              placeholder="Describe the item..."
               className="input-field resize-none"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            ></textarea>
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  description: e.target.value
+                })
+              }
+            />
           </div>
 
+          {/* IMAGE UPLOAD */}
           <div className="space-y-3">
-            <div className={`p-8 bg-bg rounded-2xl border-2 border-dashed relative group overflow-hidden transition-all ${
-              uploadError ? 'border-red-300 bg-red-50/10' : 'ring-border hover:border-slate-300'
-            }`}>
-              <input 
-                type="file" 
-                accept="image/*" 
+            <div
+              className={`rounded-3xl border-2 border-dashed relative overflow-hidden transition-all min-h-[280px] ${
+                uploadError
+                  ? 'border-red-300 bg-red-50/10'
+                  : 'border-border hover:border-slate-400'
+              }`}
+            >
+              <input
+                type="file"
+                accept="image/*"
                 disabled={isUploading}
-                className="absolute inset-0 opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed" 
+                className="absolute inset-0 opacity-0 cursor-pointer z-20"
                 onChange={handleFileChange}
               />
-              {formData.imageUrl && !formData.imageUrl.includes('picsum.photos') ? (
-                <div className="absolute inset-0">
-                  <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <p className="text-primary-fg font-bold text-xs  ">Change Photo</p>
+
+              {formData.imageUrl ? (
+                <div className="relative w-full h-[280px] bg-black">
+                  <img
+                    src={formData.imageUrl}
+                    alt="Preview"
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+
+                  <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition flex items-center justify-center">
+                    <p className="text-white font-bold text-sm">
+                      Change Photo
+                    </p>
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center text-center">
-                  <Camera size={32} className="text-muted mb-2" />
-                  <p className="text-xs font-bold text-muted   mb-4">Upload Image</p>
-                  <div className="btn-muted text-xs px-6 py-2">
+                <div className="h-[280px] flex flex-col items-center justify-center text-center">
+                  <Camera
+                    size={36}
+                    className="text-muted mb-3"
+                  />
+
+                  <p className="text-sm font-bold text-muted mb-4">
+                    Upload Image
+                  </p>
+
+                  <div className="btn-muted px-6 py-2 text-sm">
                     Choose File
                   </div>
                 </div>
               )}
 
-              {/* Dynamic Progress Overlay */}
+              {/* Upload Overlay */}
               {isUploading && (
-                <div className="absolute inset-0 bg-slate-900/80  flex flex-col items-center justify-center text-center p-4 z-20">
-                  <div className="w-10 h-10 rounded-full border-4 border-primary-fg/20 border-t-primary animate-spin mb-3"></div>
-                  <p className="text-primary-fg font-bold text-xs   mb-2">Uploading to Cloudinary</p>
-                  <div className="w-full max-w-xs bg-surface/20 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-primary h-full transition-all duration-300" 
-                      style={{ width: `${uploadProgress}%` }}
+                <div className="absolute inset-0 z-30 bg-slate-900/80 flex flex-col items-center justify-center p-6">
+                  <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white animate-spin mb-4"></div>
+
+                  <p className="text-white font-bold text-sm mb-3">
+                    Uploading to Cloudinary
+                  </p>
+
+                  <div className="w-full max-w-xs bg-white/20 h-2 rounded-full overflow-hidden">
+                    <div
+                      className="bg-primary h-full transition-all duration-300"
+                      style={{
+                        width: `${uploadProgress}%`
+                      }}
                     />
                   </div>
-                  <p className="text-primary-fg text-[10px] font-mono mt-1">{uploadProgress}%</p>
+
+                  <p className="text-white text-xs font-mono mt-2">
+                    {uploadProgress}%
+                  </p>
                 </div>
               )}
             </div>
 
-            {/* Error Message */}
+            {/* Upload Error */}
             {uploadError && (
-              <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-2xl border border-red-100 animate-in fade-in duration-350">
-                <AlertCircle size={16} className="flex-shrink-0" />
-                <span className="text-xs font-medium">{uploadError}</span>
+              <div className="flex items-center gap-2 p-3 rounded-2xl border border-red-200 bg-red-50 text-red-600">
+                <AlertCircle size={16} />
+
+                <span className="text-xs font-medium">
+                  {uploadError}
+                </span>
               </div>
             )}
           </div>
 
-          <div className="flex gap-4 pt-4 sticky bottom-0 bg-surface pb-2 sm:pb-0">
+          {/* Buttons */}
+          <div className="flex gap-4 pt-4 sticky bottom-0 bg-surface pb-2">
             <button
               type="button"
               onClick={onClose}
               disabled={isUploading || isSubmitting}
-              className="flex-1 btn-muted py-3 sm:py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 btn-muted py-4 disabled:opacity-50"
             >
               Cancel
             </button>
+
             <button
               type="submit"
               disabled={isUploading || isSubmitting}
-              className={`flex-1 btn-primary py-3 sm:py-4 flex items-center justify-center space-x-2 ${
-                (isUploading || isSubmitting) ? 'opacity-50 cursor-not-allowed' : ''
+              className={`flex-1 py-4 rounded-2xl font-semibold text-white transition flex items-center justify-center gap-2 ${
+                type === 'lost'
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-primary hover:bg-primary/90'
               } ${
-                type === 'lost' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-primary hover:bg-primary/95'
+                (isUploading || isSubmitting) &&
+                'opacity-50 cursor-not-allowed'
               }`}
             >
               {isSubmitting ? (
                 <>
-                  <span className="w-4 h-4 rounded-full border-2 border-primary-fg/20 border-t-white animate-spin"></span>
-                  <span>Submitting…</span>
+                  <span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin"></span>
+                  <span>Submitting...</span>
                 </>
               ) : isUploading ? (
                 <>
-                  <span className="w-4 h-4 rounded-full border-2 border-primary-fg/20 border-t-white animate-spin"></span>
-                  <span>Uploading {uploadProgress}%</span>
+                  <span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin"></span>
+                  <span>
+                    Uploading {uploadProgress}%
+                  </span>
                 </>
               ) : (
                 <span>Submit Report</span>
               )}
             </button>
           </div>
+
+          {/* Submit Error */}
           {submitError && (
-            <div className="mt-3 p-3 bg-red-50 text-red-600 rounded-2xl text-sm font-medium">{submitError}</div>
+            <div className="p-3 rounded-2xl bg-red-50 text-red-600 text-sm font-medium">
+              {submitError}
+            </div>
           )}
         </form>
       </motion.div>

@@ -84,7 +84,8 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
           course: formData.course,
           yearLevel: formData.yearLevel,
           role: 'student', // Default role
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(formData.fullName)}&background=1d4ed8&color=fff`,
         });
       } catch (err: any) {
         handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);

@@ -53,6 +53,7 @@ export function useFirestoreData(user: User | null, authLoading: boolean) {
             ...data,
             name: data.fullName || data.name || 'Unknown',
             email: data.schoolEmail || data.email || '',
+              avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.fullName || 'User')}&background=1d4ed8&color=fff`,
           } as User;
         }));
         if (!snapshot.metadata.fromCache) setFirestoreOnline();
