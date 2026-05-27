@@ -17,21 +17,29 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch }: ImageSea
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const compressed = await compressImage(file);
-        setSelectedImage(compressed);
+    if (file) await handleFile(file);
+  };
+
+  const handleFile = async (file: File) => {
+    try {
+      const compressed = await compressImage(file);
+      setSelectedImage(compressed);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to compress search image:', err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
         setError(null);
-      } catch (err) {
-        console.error('Failed to compress search image:', err);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setSelectedImage(reader.result as string);
-          setError(null);
-        };
-        reader.readAsDataURL(file);
-      }
+      };
+      reader.readAsDataURL(file);
     }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) await handleFile(file);
   };
 
   const analyzeImage = async () => {
@@ -92,24 +100,29 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch }: ImageSea
                     </div>
                     <h3 className="text-lg font-bold text-fg mb-2">Upload a Photo</h3>
                     <p className="text-muted text-sm mb-8">
-                      Our AI will analyze the photo to find matching items in our database.
+                      We'll extract keywords and any readable text from the photo to search the database.
                     </p>
                   </div>
 
                   <label className="block">
                     <span className="sr-only">Choose photo</span>
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="block w-full text-sm text-muted
-                        file:mr-4 file:py-3 file:px-6
-                        file:rounded-xl file:border-0
-                        file:text-sm file:font-bold
-                        file:bg-primary file:text-primary-fg
-                        hover:file:bg-primary-dark
-                        cursor-pointer"
-                    />
+                    <div
+                      onDrop={handleDrop}
+                      onDragOver={(e) => e.preventDefault()}
+                      className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:bg-bg/50"
+                    >
+                      <Upload size={36} className="mb-3 text-muted" />
+                      <div className="text-center">
+                        <p className="font-bold text-fg">Drag & drop an image here</p>
+                        <p className="text-sm text-muted">or click to browse (PNG, JPG)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="sr-only"
+                      />
+                    </div>
                   </label>
                 </div>
               ) : (
@@ -147,12 +160,12 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch }: ImageSea
                     {isAnalyzing ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-400 border-t-transparent mr-3"></div>
-                        AI Analyzing Image...
+                        Extracting keywords...
                       </>
                     ) : (
                       <>
                         <Zap size={20} className="mr-2 text-accent" />
-                        Identify & Search
+                        Extract & Search
                       </>
                     )}
                   </button>
@@ -162,7 +175,7 @@ export default function ImageSearchModal({ isOpen, onClose, onSearch }: ImageSea
 
             <div className="p-6 bg-bg border-t ring-border text-center">
               <p className="text-[10px] font-bold text-muted  ">
-                AI Match Technology Powered by Gemini
+                Image-based search uses keyword extraction and OCR to improve matching.
               </p>
             </div>
           </motion.div>

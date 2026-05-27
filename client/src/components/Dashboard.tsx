@@ -19,6 +19,7 @@ interface DashboardProps {
   onReportFound: () => void;
   onViewItem: (item: Item) => void;
   setIsImageSearchOpen: (isOpen: boolean) => void;
+  onDeleteAccount?: () => void;
 }
 
 export default function Dashboard({ 
@@ -35,6 +36,7 @@ export default function Dashboard({
   onReportFound, 
   onViewItem, 
   setIsImageSearchOpen 
+  , onDeleteAccount
 }: DashboardProps) {
   const [activeTab, setActiveTab] = React.useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
@@ -548,7 +550,7 @@ export default function Dashboard({
                   Logout from Account
                 </button>
                 <button className="px-6 py-3 bg-surface border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-all">
-                  Delete Account
+                  <span onClick={() => onDeleteAccount && onDeleteAccount()}>Delete Account</span>
                 </button>
               </div>
             </div>

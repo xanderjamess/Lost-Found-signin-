@@ -26,6 +26,9 @@ import { useToast } from "./hooks/useToast";
 import { usePageRouting } from "./hooks/usePageRouting";
 import { useCampusMutations } from "./hooks/useCampusMutations";
 import type { Item } from "./types";
+import { auth } from "./lib/firebase";
+import { deleteUser } from 'firebase/auth';
+import ReauthModal from './components/ReauthModal';
 
 export default function AppContent() {
   const { user, logout, loading: authLoading } = useAuth();
@@ -82,6 +85,48 @@ export default function AppContent() {
     handleUpdateUser,
     handleDeleteUser,
   } = useCampusMutations({ user, items, users, claims, showToast });
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const ok = window.confirm('Are you sure you want to permanently delete your account? This cannot be undone.');
+    if (!ok) return;
+
+    try {
+      // Delete Firestore user doc and related data via client-side batch (handleDeleteUser will remove related docs)
+      await handleDeleteUser(user.id);
+
+      // Then delete Firebase Auth user if possible
+      if (auth.currentUser) {
+        try {
+          await deleteUser(auth.currentUser);
+          showToast('Your account has been deleted.');
+        } catch (err: any) {
+          // Requires recent login -> open reauth modal and retry after success
+          console.warn('Failed to delete auth user, requesting reauth:', err);
+          setReauthOpen(true);
+          setReauthCallback(() => async () => {
+            try {
+              if (auth.currentUser) {
+                await deleteUser(auth.currentUser);
+                showToast('Your account has been deleted.');
+              }
+            } catch (e) {
+              console.error('Retry delete after reauth failed:', e);
+              showToast('Account deletion failed after reauthentication. Please contact support.', 'error');
+            }
+          });
+        }
+      } else {
+        showToast('Your account has been deleted.');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      showToast('Failed to delete account. Please try again or contact support.', 'error');
+    }
+  };
+
+  const [reauthOpen, setReauthOpen] = React.useState(false);
+  const [reauthCallback, setReauthCallback] = React.useState<(() => Promise<void>) | null>(null);
 
   const handleReportClick = (type: "lost" | "found") => {
     if (!user) {
@@ -174,6 +219,7 @@ export default function AppContent() {
               onReportFound={() => handleReportClick("found")}
               onViewItem={setSelectedItem}
               setIsImageSearchOpen={setIsImageSearchOpen}
+              onDeleteAccount={handleDeleteAccount}
             />
           )}
 
@@ -283,6 +329,20 @@ export default function AppContent() {
       <ChatbotWidget user={user} onNavigate={handleNavigate} />
 
       <ToastBanner toast={toast} />
+      <ReauthModal
+        open={reauthOpen}
+        onClose={() => setReauthOpen(false)}
+        email={user?.email || ''}
+        onSuccess={async () => {
+          if (reauthCallback) {
+            await reauthCallback();
+            setReauthCallback(null);
+            setReauthOpen(false);
+          }
+        }}
+      />
     </div>
   );
 }
+
+// Render ReauthModal at end of file if used by AppContent

@@ -5,6 +5,9 @@ import {
   deleteDoc,
   doc,
   updateDoc,
+  getDocs,
+  query,
+  where,
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { handleFirestoreError, OperationType } from "../lib/firestoreUtils";
@@ -307,6 +310,51 @@ export function useCampusMutations({ user, items, users, claims, showToast }: Ca
 
   const handleDeleteUser = useCallback(async (id: string) => {
     try {
+      // Delete user's items
+      try {
+        const itemsQ = query(collection(db, 'items'), where('reporterId', '==', id));
+        const itemsSnap = await getDocs(itemsQ);
+        for (const d of itemsSnap.docs) {
+          await deleteDoc(doc(db, 'items', d.id));
+        }
+      } catch (e) {
+        console.warn('Failed to delete user items:', e);
+      }
+
+      // Delete user's comments
+      try {
+        const commentsQ = query(collection(db, 'comments'), where('userId', '==', id));
+        const commentsSnap = await getDocs(commentsQ);
+        for (const d of commentsSnap.docs) {
+          await deleteDoc(doc(db, 'comments', d.id));
+        }
+      } catch (e) {
+        console.warn('Failed to delete user comments:', e);
+      }
+
+      // Delete user's claims
+      try {
+        const claimsQ = query(collection(db, 'claims'), where('userId', '==', id));
+        const claimsSnap = await getDocs(claimsQ);
+        for (const d of claimsSnap.docs) {
+          await deleteDoc(doc(db, 'claims', d.id));
+        }
+      } catch (e) {
+        console.warn('Failed to delete user claims:', e);
+      }
+
+      // Delete user's notifications
+      try {
+        const notifsQ = query(collection(db, 'notifications'), where('userId', '==', id));
+        const notifsSnap = await getDocs(notifsQ);
+        for (const d of notifsSnap.docs) {
+          await deleteDoc(doc(db, 'notifications', d.id));
+        }
+      } catch (e) {
+        console.warn('Failed to delete user notifications:', e);
+      }
+
+      // Finally delete the user document
       await deleteDoc(doc(db, "users", id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${id}`);

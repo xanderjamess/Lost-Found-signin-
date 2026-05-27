@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { createWorker } from 'tesseract.js';
 
 export interface ItemPayload {
   id: string;
@@ -63,7 +64,31 @@ export async function analyzeReportWithAI(
       },
     });
 
-    return JSON.parse(response.text || "{}");
+    const txt = response.text || "";
+    try {
+      return JSON.parse(txt);
+    } catch (e) {
+      // Try to extract JSON object from model output (in case model added extra text)
+      const first = txt.indexOf('{');
+      const last = txt.lastIndexOf('}');
+      if (first !== -1 && last !== -1 && last > first) {
+        const jsonPart = txt.slice(first, last + 1);
+        try {
+          return JSON.parse(jsonPart);
+        } catch (err) {
+          console.error('Failed to parse extracted JSON from AI response:', err);
+        }
+      }
+
+      console.error('AI Analysis: received non-JSON response:', txt.slice(0, 1000));
+      // Fallback: return a safe, minimal analysis object to avoid crashing the caller
+      return {
+        confidence: 0,
+        summary: txt.substring(0, 1000),
+        potentialMatches: [],
+        recommendation: '',
+      };
+    }
   } catch (error) {
     console.error("AI Analysis Error:", error);
     throw error;
@@ -110,21 +135,57 @@ If you cannot answer a specific query about a certain item's exact location, sug
 
 export async function imageSearchKeywords(imageDataUrl: string): Promise<string> {
   if (!hasApiKey()) {
-    return "electronics phone black smartphone";
+    // Fallback: attempt simple OCR-only keyword extraction
+    const base64Data = imageDataUrl.includes(",")
+      ? imageDataUrl.split(",")[1]
+      : imageDataUrl;
+
+    const buffer = Buffer.from(base64Data, 'base64');
+    try {
+      const worker = createWorker();
+      await worker.load();
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
+      const { data } = await worker.recognize(buffer);
+      await worker.terminate();
+      const txt = (data?.text || '').trim();
+      if (!txt) return 'electronics phone black smartphone';
+      const words = Array.from(new Set(txt.toLowerCase().match(/\b[a-z0-9]{3,}\b/g) || []));
+      return (words.slice(0, 10).join(' ') || 'electronics phone black smartphone');
+    } catch (err) {
+      console.warn('OCR fallback failed:', err);
+      return 'electronics phone black smartphone';
+    }
   }
 
   const base64Data = imageDataUrl.includes(",")
     ? imageDataUrl.split(",")[1]
     : imageDataUrl;
+  const buffer = Buffer.from(base64Data, 'base64');
+
+  // Run OCR first and include extracted text in the request to the image model
+  let ocrText = '';
+  try {
+    const worker = createWorker();
+    await worker.load();
+    await worker.loadLanguage('eng');
+    await worker.initialize('eng');
+    const { data } = await worker.recognize(buffer);
+    await worker.terminate();
+    ocrText = (data?.text || '').trim();
+  } catch (err) {
+    console.warn('OCR step failed:', err);
+    ocrText = '';
+  }
+
+  const promptText = `Analyze this image of a lost item. Provide a list of 5-10 keywords that describe the item, its color, brand, material, and any related categories (e.g., if it's an iPhone, include phone, electronics, apple, smartphone, black). If the image contains readable text (serial numbers, labels, logos), include keywords derived from that text. OCR_EXTRACTED_TEXT_START ${ocrText} OCR_EXTRACTED_TEXT_END. Return ONLY the keywords separated by spaces.`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: [
       {
         parts: [
-          {
-            text: "Analyze this image of a lost item. Provide a list of 5-10 keywords that describe the item, its color, brand, material, and any related categories (e.g., if it's an iPhone, include 'phone', 'electronics', 'apple', 'smartphone', 'black'). Return ONLY the keywords separated by spaces.",
-          },
+          { text: promptText },
           { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
         ],
       },
@@ -133,7 +194,11 @@ export async function imageSearchKeywords(imageDataUrl: string): Promise<string>
 
   const keywords = response.text?.trim();
   if (!keywords) {
+    // fallback to OCR-derived words if model failed to produce keywords
+    const words = Array.from(new Set(ocrText.toLowerCase().match(/\b[a-z0-9]{3,}\b/g) || []));
+    if (words.length > 0) return words.slice(0, 10).join(' ');
     throw new Error("Could not analyze image");
   }
+
   return keywords;
 }

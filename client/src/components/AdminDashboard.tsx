@@ -241,6 +241,54 @@ export default function AdminDashboard({
     return initial.map(({ name, lost, found }) => ({ name, lost, found }));
   }, [items]);
 
+  const handleExportReport = React.useCallback(() => {
+    try {
+      const rowsToCsv = (headers: string[], rows: (string | number | boolean)[][]) => {
+        const esc = (v: any) => {
+          if (v === null || v === undefined) return '';
+          const s = String(v);
+          return s.includes(',') || s.includes('\n') || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+        };
+        return [headers.join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
+      };
+
+      const sections: string[] = [];
+
+      // Metadata
+      sections.push(`# Generated At:,${new Date().toISOString()}`);
+
+      // Stats
+      sections.push('\n# Stats');
+      sections.push(rowsToCsv(['label', 'value'], stats.map(s => [s.label, s.value])));
+
+      // Items by category
+      sections.push('\n# Items By Category');
+      sections.push(rowsToCsv(['category', 'count'], itemsByCategory.map(c => [c.name, c.value])));
+
+      // Items by status
+      sections.push('\n# Items By Status');
+      sections.push(rowsToCsv(['status', 'count'], itemsByStatus.map(s => [s.name, s.value])));
+
+      // Monthly trends
+      sections.push('\n# Monthly Trends');
+      sections.push(rowsToCsv(['month', 'lost', 'found'], monthlyTrends.map(m => [m.name, m.lost, m.found])));
+
+      const csv = sections.join('\n\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `analytics-${new Date().toISOString().slice(0,19).replace(/[:T]/g, '-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
+  }, [stats, itemsByCategory, itemsByStatus, monthlyTrends]);
+
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
   const renderUsers = () => (
@@ -352,7 +400,7 @@ export default function AdminDashboard({
         <h2 className="text-2xl font-bold text-fg">System Analytics</h2>
         <div className="flex space-x-2">
           <button className="px-4 py-2 bg-surface border ring-border rounded-xl text-xs font-bold text-muted hover:bg-bg transition-all">Last 30 Days</button>
-          <button className="px-4 py-2 bg-primary text-primary-fg rounded-xl text-xs font-bold  shadow-primary/20">Export Report</button>
+          <button onClick={handleExportReport} className="px-4 py-2 bg-primary text-primary-fg rounded-xl text-xs font-bold  shadow-primary/20">Export Report</button>
         </div>
       </div>
 
@@ -1349,7 +1397,7 @@ export default function AdminDashboard({
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.9, opacity: 0 }}
-                  className="bg-surface rounded-2xl  max-w-lg w-full overflow-hidden"
+                  className="bg-surface rounded-2xl max-w-lg w-full max-h-[80vh] overflow-auto"
                 >
                   <div className="p-6 border-b ring-border flex justify-between items-center bg-primary text-primary-fg">
                     <div className="flex items-center">
