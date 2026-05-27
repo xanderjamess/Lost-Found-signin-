@@ -196,8 +196,9 @@ export default function AppContent() {
           {currentPage === "signup" && (
             <SignupForm
               onSuccess={() => {
-                handleNavigate("login-form");
-                showToast("Registration successful! Please sign in.", "success");
+                // Firebase already has an active session after createUserWithEmailAndPassword
+                // so onAuthStateChanged fires and usePageRouting handles the redirect automatically
+                showToast("Welcome! Your account has been created.", "success");
               }}
               onBack={() => handleNavigate("home")}
               onLogin={() => handleNavigate("login-form")}
