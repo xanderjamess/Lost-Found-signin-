@@ -16,6 +16,28 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+  const allowedOrigins = new Set<string>(
+    [
+      process.env.CLIENT_ORIGIN,        // production Netlify URL
+      "http://localhost:3000",           // local dev
+      "http://localhost:5173",           // Vite dev server
+    ].filter(Boolean) as string[]
+  );
+
+  app.use((req, res, next) => {
+    const origin = req.headers.origin ?? "";
+    if (allowedOrigins.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
+  // ──────────────────────────────────────────────────────────────────────────
+
   app.use(express.json({ limit: "15mb" }));
   app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
@@ -37,13 +59,15 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    // On Render (API-only), we don't serve static files — Netlify handles that.
+    // This branch is kept so the same binary works if you ever switch to
+    // a single-service deploy.
     app.use(express.static(clientDist));
     app.get("*", (req, res) => {
       if (req.path.startsWith("/api")) {
         return res.status(404).json({ error: `API route not found: ${req.originalUrl}` });
       }
-      // Serve index.html for all non-API routes so the SPA handles routing (including /admin)
-      res.sendFile(path.join(clientDist, 'index.html'));
+      res.sendFile(path.join(clientDist, "index.html"));
     });
   }
 

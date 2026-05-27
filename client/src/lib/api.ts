@@ -1,3 +1,5 @@
+const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
 type ChatMessage = { role: "user" | "model"; content: string };
 
 async function parseError(res: Response): Promise<string> {
@@ -10,7 +12,7 @@ async function parseError(res: Response): Promise<string> {
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(path, {
+  const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -21,13 +23,17 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+  return res.json();
+}
+
 export const api = {
   async getChatHistory(userId: string): Promise<ChatMessage[]> {
-    const res = await fetch(`/api/chat-history/${userId}`);
-    if (!res.ok) {
-      throw new Error(await parseError(res));
-    }
-    return res.json();
+    return getJson(`/api/chat-history/${userId}`);
   },
 
   async saveChatHistory(userId: string, history: ChatMessage[]): Promise<void> {
