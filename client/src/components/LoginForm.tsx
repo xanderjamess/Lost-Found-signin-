@@ -342,7 +342,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="e.g. 2024-XXXX-XXXXX or email"
+                placeholder={role === "admin" ? "e.g. admin@gmail.com" : "e.g. 2024-XXXX-XXXXX or jdoe@bicol-u.edu.ph"}
                 className="input-field pl-12 py-3"
               />
             </div>

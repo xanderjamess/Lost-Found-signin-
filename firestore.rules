@@ -82,7 +82,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn();
+      allow list: if true;
       
       allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming()) && (
                     incoming().role == 'student' ||
