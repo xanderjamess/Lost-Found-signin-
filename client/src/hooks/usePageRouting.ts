@@ -46,7 +46,7 @@ export function usePageRouting(
     if (isUserAdmin(user)) {
       if (currentPage !== 'admin') setCurrentPage('admin');
     } else {
-      if (currentPage === 'admin' || currentPage === 'login-form' || currentPage === 'home') {
+      if (currentPage === 'admin' || currentPage === 'login-form' || currentPage === 'home' || currentPage === "signup") {
         setCurrentPage('dashboard');
       }
     }
