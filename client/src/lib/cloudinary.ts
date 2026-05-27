@@ -1,3 +1,5 @@
+const BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
 export function uploadImageToCloudinary(
   base64Data: string,
   onProgress?: (percent: number) => void
@@ -9,7 +11,7 @@ export function uploadImageToCloudinary(
     }
 
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/upload-image", true);
+    xhr.open("POST", `${BASE}/api/upload-image`, true);
     xhr.setRequestHeader("Content-Type", "application/json");
 
     if (xhr.upload && onProgress) {
