@@ -71,6 +71,7 @@ export default function AppContent() {
 
   const {
     handleUpdateItem,
+    handleNotifyPotentialMatch,
     handleReportSubmit,
     handlePostComment,
     handleDeleteComment,
@@ -188,6 +189,7 @@ export default function AppContent() {
               onNotificationClick={handleNotificationClick}
               onLogout={handleLogout}
               onUpdateItem={handleUpdateItem}
+              onNotifyPotentialMatch={handleNotifyPotentialMatch}
               onApproveClaim={handleApproveClaim}
               onRejectClaim={handleRejectClaim}
               onViewItem={setSelectedItem}

@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { User, Mail, Lock, BookOpen, GraduationCap, Hash, Camera, Loader2, ArrowRight, CheckCircle2, ChevronLeft, Eye, EyeOff } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { doc, setDoc, query, collection, where, getDocs, getDoc } from 'firebase/firestore';
+import { doc, setDoc, query, collection, where, getDocs, getDoc, updateDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 interface SignupFormProps {
@@ -71,18 +71,6 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
     setIsLoading(true);
 
     try {
-      // Check if student ID is unique
-      try {
-        const q = query(collection(db, 'users'), where('studentId', '==', formData.studentId));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          throw new Error('Student ID is already registered');
-        }
-      } catch (err: any) {
-        if (err.message === 'Student ID is already registered') throw err;
-        handleFirestoreError(err, OperationType.LIST, 'users');
-      }
-
       // Create user
       const userCredential = await createUserWithEmailAndPassword(auth, formData.schoolEmail, formData.password);
       const user = userCredential.user;
@@ -166,17 +154,36 @@ export default function SignupForm({ onBack, onSuccess, onLogin }: SignupFormPro
 
       if (userDoc && !userDoc.exists()) {
         try {
+          const displayName = result.user.displayName || 'Anonymous User';
           await setDoc(doc(db, 'users', result.user.uid), {
-            fullName: result.user.displayName || 'Anonymous User',
+            fullName: displayName,
             schoolEmail: result.user.email,
             studentId: 'Google User',
             course: 'Not Provided',
             yearLevel: '1st Year',
             role: 'student',
+            avatar:
+              result.user.photoURL ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
             createdAt: new Date().toISOString()
           });
         } catch (err: any) {
           handleFirestoreError(err, OperationType.WRITE, `users/${result.user.uid}`);
+        }
+      } else if (userDoc && userDoc.exists()) {
+        // Existing doc but missing avatar (common for older test users) - patch it.
+        const displayName = result.user.displayName || 'Anonymous User';
+        const avatar =
+          result.user.photoURL ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`;
+
+        const existingAvatar = (userDoc.data() as any)?.avatar as string | undefined;
+        if (!existingAvatar) {
+          try {
+            await updateDoc(doc(db, 'users', result.user.uid), { avatar });
+          } catch (err: any) {
+            handleFirestoreError(err, OperationType.UPDATE, `users/${result.user.uid}`);
+          }
         }
       }
 

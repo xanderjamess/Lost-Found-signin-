@@ -46,7 +46,15 @@ export function useFirestoreData(user: User | null, authLoading: boolean) {
     const unsubscribeUsers = onSnapshot(
       qUsers,
       (snapshot) => {
-        setUsers(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as User));
+        setUsers(snapshot.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            ...data,
+            name: data.fullName || data.name || 'Unknown',
+            email: data.schoolEmail || data.email || '',
+          } as User;
+        }));
         if (!snapshot.metadata.fromCache) setFirestoreOnline();
       },
       (error) => handleFirestoreError(error, OperationType.GET, "users", false)

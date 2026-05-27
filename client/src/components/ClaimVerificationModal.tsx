@@ -154,7 +154,13 @@ export default function ClaimVerificationModal({
                 <div className="grid grid-cols-1 gap-3">
                   {/* Claimant */}
                   <div className="flex items-center p-3 bg-surface border ring-border rounded-2xl shadow-sm">
-                    <img src={claimer?.avatar} className="w-10 h-10 rounded-full border border-slate-50" referrerPolicy="no-referrer" />
+                    <img
+                      src={claimer?.avatar}
+                      className="w-10 h-10 rounded-full border border-slate-50"
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                    />
                     <div className="ml-3 flex-grow">
                       <p className="text-[10px] font-bold text-muted  tracking-tighter">Claimant (Owner)</p>
                       <p className="text-sm font-bold text-fg">{claimer?.name}</p>
@@ -164,7 +170,13 @@ export default function ClaimVerificationModal({
 
                   {/* Reporter */}
                   <div className="flex items-center p-3 bg-surface border ring-border rounded-2xl shadow-sm">
-                    <img src={reporter?.avatar} className="w-10 h-10 rounded-full border border-slate-50" referrerPolicy="no-referrer" />
+                    <img
+                      src={reporter?.avatar}
+                      className="w-10 h-10 rounded-full border border-slate-50"
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                    />
                     <div className="ml-3 flex-grow">
                       <p className="text-[10px] font-bold text-muted  tracking-tighter">Reported By</p>
                       <p className="text-sm font-bold text-fg">{reporter?.name}</p>

@@ -98,7 +98,13 @@ export default function Navbar({
           {user ? (
             <div className="hidden items-center gap-3 pl-2 sm:flex">
               <div className="flex items-center gap-2">
-                <img src={user.avatar} alt="" className="h-8 w-8 rounded-full bg-surface-raised" />
+                <img
+                  src={user.avatar}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-8 w-8 rounded-full bg-surface-raised"
+                />
                 <span className="max-w-[120px] truncate text-sm font-medium text-fg">{user.name}</span>
               </div>
               <button type="button" onClick={() => onNavigate("logout")} className="btn-ghost text-danger">

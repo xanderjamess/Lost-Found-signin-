@@ -92,7 +92,6 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
       ...formData,
       status: 'pending' as ItemStatus,
       type: type,
-      id: Math.random().toString(36).substr(2, 9),
       date: new Date(formData.date).toISOString()
     };
 
@@ -125,6 +124,8 @@ export default function ReportForm({ type, user, onClose, onSubmit }: ReportForm
             <img 
               src={user.avatar} 
               alt={user.name} 
+              loading="lazy"
+              decoding="async"
               className="w-12 h-12 rounded-full border-2 border-primary/20"
               referrerPolicy="no-referrer"
             />

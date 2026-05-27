@@ -60,6 +60,28 @@ export function useCampusMutations({ user, items, users, claims, showToast }: Ca
     [items]
   );
 
+  const handleNotifyPotentialMatch = useCallback(
+    async (foundItemId: string, lostItemId: string) => {
+      const foundItem = items.find((i) => i.id === foundItemId);
+      const lostItem = items.find((i) => i.id === lostItemId);
+      if (!foundItem || !lostItem) return;
+
+      try {
+        await addDoc(collection(db, "notifications"), {
+          userId: lostItem.reporterId,
+          message: `We found an item that might be yours: "${foundItem.title}". Check it out and claim it.`,
+          type: "match",
+          date: new Date().toISOString(),
+          read: false,
+          itemId: foundItemId,
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, "notifications");
+      }
+    },
+    [items]
+  );
+
   const handleReportSubmit = useCallback(
     async (data: Record<string, unknown>): Promise<boolean> => {
       if (!user) return false;
@@ -71,6 +93,7 @@ export function useCampusMutations({ user, items, users, claims, showToast }: Ca
           status: "pending",
           createdAt: new Date().toISOString(),
         };
+        delete newItem.id;
 
         // Only include imageUrl if the reporter provided one. Do not auto-fill a placeholder image.
         if (data.imageUrl && (data.imageUrl as string).trim() !== '') {
@@ -292,6 +315,7 @@ export function useCampusMutations({ user, items, users, claims, showToast }: Ca
 
   return {
     handleUpdateItem,
+    handleNotifyPotentialMatch,
     handleReportSubmit,
     handlePostComment,
     handleDeleteComment,

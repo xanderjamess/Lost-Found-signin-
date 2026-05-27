@@ -253,7 +253,14 @@ export default function ItemDetailsModal({
               {/* Reporter Info */}
               {reporter && (
                 <div className="p-4 bg-bg rounded-2xl border ring-border flex items-center">
-                  <img src={reporter.avatar} alt="" className="w-10 h-10 rounded-full mr-4 object-cover" referrerPolicy="no-referrer" />
+                  <img
+                    src={reporter.avatar}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="w-10 h-10 rounded-full mr-4 object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                   <div>
                     <h4 className="text-[10px] font-bold text-muted   mb-0.5">Reported By</h4>
                     <p className="text-sm font-bold text-fg">{reporter.name}</p>
@@ -286,8 +293,15 @@ export default function ItemDetailsModal({
                         uploadError ? 'border-red-300 bg-red-50/10' : 'ring-border'
                       }`}>
                         {proofImageUrl ? (
-                          <div className="relative w-full h-40">
-                            <img src={proofImageUrl} alt="Proof" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <div className="relative w-full aspect-[4/3]">
+                            <img
+                              src={proofImageUrl}
+                              alt="Proof"
+                              className="w-full h-full object-contain bg-bg"
+                              loading="lazy"
+                              decoding="async"
+                              referrerPolicy="no-referrer"
+                            />
                             {!isUploading && (
                               <button 
                                 type="button"
@@ -299,7 +313,7 @@ export default function ItemDetailsModal({
                             )}
                           </div>
                         ) : (
-                          <div className="relative w-full py-8 border-2 border-dashed border-transparent flex flex-col items-center justify-center text-muted hover:text-primary transition-all group overflow-hidden">
+                          <div className="relative w-full aspect-[4/3] border-2 border-dashed border-transparent flex flex-col items-center justify-center text-muted hover:text-primary transition-all group overflow-hidden">
                             <input 
                               type="file" 
                               accept="image/*" 

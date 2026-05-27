@@ -29,66 +29,33 @@ export function usePageRouting(
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const p = window.location.pathname;
-    if (p === '/' || p === '') return; // Home is default
-    if (p.startsWith('/admin')) {
-      setCurrentPage('admin');
-      return;
-    }
-    if (p.startsWith('/search')) {
-      setCurrentPage('search');
-      return;
-    }
-    if (p.startsWith('/report')) {
-      setCurrentPage('report');
-      return;
-    }
-    if (p.startsWith('/dashboard')) {
-      setCurrentPage('dashboard');
-      return;
-    }
-    if (p.startsWith('/login') || p.startsWith('/login-form')) {
-      setCurrentPage('login-form');
-      return;
-    }
-    if (p.startsWith('/signup')) {
-      setCurrentPage('signup');
-      return;
-    }
-    // Unknown path -> show not-found
+    if (p === '/' || p === '') return;
+    if (p.startsWith('/admin')) { setCurrentPage('admin'); return; }
+    if (p.startsWith('/search')) { setCurrentPage('search'); return; }
+    if (p.startsWith('/report')) { setCurrentPage('report'); return; }
+    if (p.startsWith('/dashboard')) { setCurrentPage('dashboard'); return; }
+    if (p.startsWith('/login') || p.startsWith('/login-form')) { setCurrentPage('login-form'); return; }
+    if (p.startsWith('/signup')) { setCurrentPage('signup'); return; }
     setCurrentPage('not-found');
-  }, []);
+  }, []); // runs once on mount only
 
   useEffect(() => {
-    if (authLoading) return;
+  if (authLoading) return;
 
-    if (user) {
-      if (isUserAdmin(user)) {
-        if (!isAdminPage) {
-          if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
-            // Update URL without reloading and let SPA show admin
-            window.history.replaceState(null, '', '/admin');
-          }
-          setCurrentPage('admin');
-        } else if (currentPage !== 'admin') {
-          setCurrentPage('admin');
-        }
-      } else if (isAdminPage) {
-        // Non-admin landed on /admin — move them to home without reload
-        window.history.replaceState(null, '', '/');
-        setCurrentPage('home');
-      } else if (currentPage === 'admin' || currentPage === 'home' || currentPage === 'login-form') {
+  if (user) {
+    if (isUserAdmin(user)) {
+      if (currentPage !== 'admin') setCurrentPage('admin');
+    } else {
+      if (currentPage === 'admin' || currentPage === 'login-form' || currentPage === 'home') {
         setCurrentPage('dashboard');
       }
-    } else if (isAdminPage) {
-      // Not logged in and on /admin — show home (no reload)
-      if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-        window.history.replaceState(null, '', '/');
-      }
-      setCurrentPage('home');
-    } else if (currentPage === 'admin' || currentPage === 'dashboard') {
+    }
+  } else {
+    if (currentPage === 'admin' || currentPage === 'dashboard') {
       setCurrentPage('home');
     }
-  }, [user, authLoading, isAdminPage, currentPage]);
+  }
+}, [user, authLoading]);
 
   const handleNavigate = useCallback(
     async (page: string) => {
@@ -110,14 +77,11 @@ export function usePageRouting(
   }, [logout]);
 
   const handleLoginSuccess = useCallback(() => {
-    if (isUserAdmin(user)) {
-      window.location.href = "/admin";
-    } else {
-      setCurrentPage("dashboard");
-      showToast("Successfully logged in!", "success");
-      window.scrollTo(0, 0);
-    }
-  }, [user, showToast]);
+    // Just call setCurrentPage — the useEffect above will handle admin vs student routing
+    // once AuthContext updates the user object
+    showToast("Successfully logged in!", "success");
+    window.scrollTo(0, 0);
+  }, [showToast]);
 
   return {
     currentPage,

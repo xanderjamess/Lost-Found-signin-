@@ -33,6 +33,7 @@ interface AdminDashboardProps {
   onNotificationClick: (notification: Notification) => void;
   onLogout: () => void;
   onUpdateItem: (id: string, updates: Partial<Item>) => Promise<void>;
+  onNotifyPotentialMatch: (foundItemId: string, lostItemId: string) => Promise<void> | void;
   onApproveClaim: (claimId: string) => void;
   onRejectClaim: (claimId: string) => void;
   onViewItem: (item: Item) => void;
@@ -52,6 +53,7 @@ export default function AdminDashboard({
   onNotificationClick,
   onLogout, 
   onUpdateItem, 
+  onNotifyPotentialMatch,
   onApproveClaim, 
   onRejectClaim, 
   onViewItem, 
@@ -75,6 +77,7 @@ export default function AdminDashboard({
   const [analyzingId, setAnalyzingId] = React.useState<string | null>(null);
   const [verificationItem, setVerificationItem] = React.useState<Item | null>(null);
   const [settingsTab, setSettingsTab] = React.useState('profile');
+  const [matchModalItem, setMatchModalItem] = React.useState<Item | null>(null);
   
   // System Settings State
   const [categories, setCategories] = React.useState(['Electronics', 'Personal Items', 'Accessories', 'Books', 'Clothing', 'Others']);
@@ -201,14 +204,42 @@ export default function AdminDashboard({
   }, [items]);
 
   const monthlyTrends = React.useMemo(() => {
-    // Mocking some monthly data based on current items
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    return months.map(month => ({
-      name: month,
-      lost: Math.floor(Math.random() * 20) + 5,
-      found: Math.floor(Math.random() * 25) + 10,
+    // Deterministic monthly aggregation (last 6 months) from item dates
+    const now = new Date();
+    const monthStarts = Array.from({ length: 6 }).map((_, idx) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - idx), 1);
+      return d;
+    });
+
+    const keyFor = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+
+    const initial = monthStarts.map((d) => ({
+      name: d.toLocaleDateString(undefined, { month: 'short' }),
+      key: keyFor(d),
+      lost: 0,
+      found: 0,
     }));
-  }, []);
+
+    const indexByKey = new Map(initial.map((m) => [m.key, m]));
+
+    for (const item of items) {
+      const raw = item.createdAt || item.date;
+      if (!raw) continue;
+      const dt = new Date(raw);
+      if (Number.isNaN(dt.getTime())) continue;
+
+      // Only count already-approved items
+      if (item.status === 'pending' || item.status === 'declined') continue;
+
+      const slot = indexByKey.get(keyFor(new Date(dt.getFullYear(), dt.getMonth(), 1)));
+      if (!slot) continue;
+
+      if (item.type === 'lost') slot.lost += 1;
+      if (item.type === 'found') slot.found += 1;
+    }
+
+    return initial.map(({ name, lost, found }) => ({ name, lost, found }));
+  }, [items]);
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -240,14 +271,21 @@ export default function AdminDashboard({
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 bg-surface">
+            <tbody className="divide-y divide-slate-200/40 bg-surface">
               {filteredUsers.map(u => {
                 const userReports = items.filter(i => i.reporterId === u.id).length;
                 return (
                   <tr key={u.id} className="hover:bg-surface-raised transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        <img src={u.avatar} alt="" className="w-10 h-10 rounded-full mr-3 object-cover border ring-border" referrerPolicy="no-referrer" />
+                        <img
+                          src={u.avatar}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="w-10 h-10 rounded-full mr-3 object-cover border ring-border"
+                          referrerPolicy="no-referrer"
+                        />
                         <div>
                           <p className="text-sm font-bold text-fg">{u.name}</p>
                           <p className="text-[10px] text-muted">{u.email}</p>
@@ -315,6 +353,33 @@ export default function AdminDashboard({
         <div className="flex space-x-2">
           <button className="px-4 py-2 bg-surface border ring-border rounded-xl text-xs font-bold text-muted hover:bg-bg transition-all">Last 30 Days</button>
           <button className="px-4 py-2 bg-primary text-primary-fg rounded-xl text-xs font-bold  shadow-primary/20">Export Report</button>
+        </div>
+      </div>
+
+      {/* Live-ish insights from current Firestore data */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="card p-6">
+          <p className="text-[10px] font-bold text-muted mb-2">Approved Lost Reports</p>
+          <p className="text-2xl font-bold text-fg">
+            {items.filter((i) => i.type === 'lost' && i.status === 'lost').length}
+          </p>
+        </div>
+        <div className="card p-6">
+          <p className="text-[10px] font-bold text-muted mb-2">Approved Found Reports</p>
+          <p className="text-2xl font-bold text-fg">
+            {items.filter(
+              (i) => i.type === 'found' && (i.status === 'found' || i.status === 'claimed' || i.status === 'under-review')
+            ).length}
+          </p>
+        </div>
+        <div className="card p-6">
+          <p className="text-[10px] font-bold text-muted mb-2">Most Reported Category</p>
+          <p className="text-lg font-bold text-fg">
+            {[...itemsByCategory].sort((a, b) => b.value - a.value)[0]?.name || 'N/A'}
+          </p>
+          <p className="text-[10px] text-muted mt-1">
+            {[...itemsByCategory].sort((a, b) => b.value - a.value)[0]?.value || 0} total
+          </p>
         </div>
       </div>
 
@@ -442,9 +507,16 @@ export default function AdminDashboard({
       }));
     };
 
+    const handleApproveReport = async (item: Item) => {
+      await onUpdateItem(item.id, { status: item.type === 'found' ? 'found' : 'lost' });
+      if (item.type === 'found') {
+        setMatchModalItem(item);
+      }
+    };
+
     return (
       <div className="card overflow-hidden">
-        <div className="p-6 border-b ring-border flex justify-between items-center bg-surface">
+        <div className="p-6 border-b border-slate-200/50 flex justify-between items-center bg-surface">
           <h2 className="text-xl font-bold text-fg">Report Management</h2>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
@@ -494,14 +566,21 @@ export default function AdminDashboard({
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 bg-surface">
-              {sortedItems.map(item => {
+            <tbody className="divide-y divide-slate-200/40 bg-surface">
+                      {sortedItems.map(item => {
               const reporter = users.find(u => u.id === item.reporterId);
               return (
                 <tr key={item.id} className="hover:bg-surface-raised transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
-                      <img src={item.imageUrl} alt="" className="w-10 h-10 rounded-lg mr-3 object-cover" referrerPolicy="no-referrer" />
+                      <img
+                        src={item.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="w-10 h-10 rounded-lg mr-3 object-cover"
+                        referrerPolicy="no-referrer"
+                      />
                       <div>
                         <p className="text-sm font-bold text-fg">{item.title}</p>
                         <p className="text-[10px] text-muted  font-medium tracking-wider">{item.category}</p>
@@ -512,7 +591,14 @@ export default function AdminDashboard({
                     <div className="flex items-center">
                       {reporter ? (
                         <>
-                          <img src={reporter.avatar} alt="" className="w-6 h-6 rounded-full mr-2 object-cover" referrerPolicy="no-referrer" />
+                          <img
+                            src={reporter.avatar}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="w-6 h-6 rounded-full mr-2 object-cover"
+                            referrerPolicy="no-referrer"
+                          />
                           <div>
                             <p className="text-xs font-bold text-fg">{reporter.name}</p>
                             <p className="text-[10px] text-muted">{reporter.email}</p>
@@ -524,21 +610,35 @@ export default function AdminDashboard({
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`status-badge ${
-                      item.status === 'found' ? 'bg-primary/10 text-primary' : 
-                      item.status === 'lost' ? 'bg-red-100 text-red-700' : 
-                      item.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                      item.status === 'declined' ? 'bg-surface-raised text-muted' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
+                    <span
+                      className={`status-badge whitespace-nowrap inline-flex items-center ${
+                        item.status === 'found'
+                          ? 'bg-primary/10 text-primary'
+                          : item.status === 'lost'
+                            ? 'bg-red-500/15 text-red-300'
+                            : item.status === 'claimed'
+                              ? 'bg-emerald-500/15 text-emerald-300'
+                              : item.status === 'under-review'
+                                ? 'bg-blue-500/15 text-blue-300'
+                                : item.status === 'pending'
+                                  ? 'bg-amber-500/15 text-amber-300'
+                                  : item.status === 'declined'
+                                    ? 'bg-surface-raised text-muted border border-slate-200/10'
+                                    : 'bg-blue-500/15 text-blue-300'
+                      }`}
+                    >
                       {item.status}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     {item.type === 'found' ? (
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full  tracking-wider ${
-                        item.currentPossession === 'csc-office' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-bg text-muted border ring-border'
-                      }`}>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-1 rounded-full tracking-wider whitespace-nowrap inline-flex items-center justify-center ${
+                          item.currentPossession === 'csc-office'
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/20'
+                            : 'bg-surface-raised text-muted border border-slate-200/10'
+                        }`}
+                      >
                         {item.currentPossession === 'csc-office' ? 'CSC Office' : 'With Finder'}
                       </span>
                     ) : (
@@ -552,7 +652,7 @@ export default function AdminDashboard({
                       {activeTab === 'pending-reports' && item.status === 'pending' && (
                         <>
                           <button 
-                            onClick={() => onUpdateItem(item.id, { status: item.type === 'found' ? 'found' : 'lost' })}
+                            onClick={() => handleApproveReport(item)}
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                             title="Approve Report"
                           >
@@ -720,6 +820,8 @@ export default function AdminDashboard({
         );
       case 'all-items':
         return renderTable(filteredItems);
+      case 'analytics':
+        return renderAnalytics();
       case 'claims':
         return (
           <div className="space-y-6">
@@ -738,7 +840,7 @@ export default function AdminDashboard({
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 bg-surface">
+                  <tbody className="divide-y divide-slate-200/40 bg-surface">
                     {claims.map(claim => {
                       const item = items.find(i => i.id === claim.itemId);
                       const claimer = users.find(u => u.id === claim.userId);
@@ -755,7 +857,14 @@ export default function AdminDashboard({
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center">
-                              <img src={claimer?.avatar} alt="" className="w-8 h-8 rounded-full mr-2 object-cover" referrerPolicy="no-referrer" />
+                              <img
+                                src={claimer?.avatar}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                className="w-8 h-8 rounded-full mr-2 object-cover"
+                                referrerPolicy="no-referrer"
+                              />
                               <div>
                                 <p className="text-sm font-bold text-fg">{claimer?.name}</p>
                                 <p className="text-[10px] text-muted">{claimer?.email}</p>
@@ -957,7 +1066,14 @@ export default function AdminDashboard({
                       </h2>
                       <div className="space-y-6">
                         <div className="flex items-center space-x-4">
-                          <img src={user.avatar} alt="" className="w-20 h-20 rounded-2xl object-cover border-4 border-gray-50 shadow-sm" referrerPolicy="no-referrer" />
+                          <img
+                            src={user.avatar}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="w-20 h-20 rounded-2xl object-cover border-4 border-gray-50 shadow-sm"
+                            referrerPolicy="no-referrer"
+                          />
                           <div>
                             <button className="text-xs font-bold text-primary hover:underline  ">Change Avatar</button>
                             <p className="text-[10px] text-muted mt-1   font-medium">JPG, PNG or GIF. Max 2MB.</p>
@@ -1338,6 +1454,98 @@ export default function AdminDashboard({
           </AnimatePresence>
         </div>
       </main>
+      {/* Found Item Match Modal */}
+      <AnimatePresence>
+        {matchModalItem && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-surface rounded-3xl max-w-xl w-full overflow-hidden"
+            >
+              <div className="p-6 border-b ring-border flex justify-between items-center bg-primary text-primary-fg">
+                <div>
+                  <h3 className="font-bold text-sm">Notify Matching Lost Report</h3>
+                  <p className="text-[11px] text-primary-fg/80">
+                    Select a matching lost report to notify the student.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setMatchModalItem(null)}
+                  className="p-1 hover:bg-surface/10 rounded-full transition-colors"
+                >
+                  <XCircle size={22} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="text-xs text-muted">
+                  <span className="font-bold text-fg">Found item:</span>{" "}
+                  {matchModalItem.title} • {matchModalItem.category} • {matchModalItem.location}
+                </div>
+                {items.filter(i =>
+                  i.type === 'lost' &&
+                  (i.status === 'pending' || i.status === 'lost')
+                ).length === 0 ? (
+                  <div className="p-4 bg-surface-raised rounded-2xl border ring-border text-xs text-muted">
+                    No lost reports are available to notify yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {items.filter(i =>
+                      i.type === 'lost' &&
+                      (i.status === 'pending' || i.status === 'lost')
+                    ).map(lost => {
+                      const student = users.find(u => u.id === lost.reporterId);
+                      return (
+                        <div
+                          key={lost.id}
+                          className="p-4 bg-surface-raised rounded-2xl border ring-border flex justify-between items-start gap-3"
+                        >
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-fg">{lost.title}</p>
+                            <p className="text-[11px] text-muted">
+                              {lost.location} • reported on{" "}
+                              {new Date(lost.createdAt || lost.date).toLocaleDateString()}
+                            </p>
+                            {student && (
+                              <p className="text-[11px] text-muted">
+                                Student: <span className="font-semibold">{student.name}</span> ({student.email})
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={async () => {
+                              await onNotifyPotentialMatch(matchModalItem.id, lost.id);
+                              setMatchModalItem(null);
+                            }}
+                            className="px-3 py-2 text-[11px] font-bold rounded-xl bg-primary text-primary-fg hover:bg-primary/90 whitespace-nowrap"
+                          >
+                            Notify Student
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t ring-border flex justify-end">
+                <button
+                  onClick={() => setMatchModalItem(null)}
+                  className="px-4 py-2 text-xs font-bold text-muted hover:text-fg"
+                >
+                  Skip for now
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Claim Verification Modal */}
       {verificationItem && (
         <ClaimVerificationModal

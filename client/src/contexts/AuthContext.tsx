@@ -7,7 +7,7 @@ import {
 import { doc, getDoc, getDocFromCache } from 'firebase/firestore';
 import { isUserAdmin } from '../lib/admin';
 import { auth, db } from '../lib/firebase';
-import { handleFirestoreError, OperationType, setFirestoreOnline } from '../lib/firestoreUtils';
+import { OperationType, setFirestoreOnline } from '../lib/firestoreUtils';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -25,22 +25,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastActivity, setLastActivity] = useState(Date.now());
 
   const fetchUserData = async (firebaseUser: FirebaseUser) => {
-    let userDoc = null;
     const docRef = doc(db, 'users', firebaseUser.uid);
+    let userDoc = null;
+
     try {
       userDoc = await getDoc(docRef);
       setFirestoreOnline();
     } catch (error: any) {
-      const isOfflineMsg = error.message?.toLowerCase().includes('offline') || error.code === 'unavailable';
-      if (isOfflineMsg) {
+      const code = error?.code || '';
+      const message = error?.message?.toLowerCase() || '';
+
+      const isOfflineError =
+        code === 'unavailable' ||
+        code === 'deadline-exceeded' ||
+        message.includes('offline') ||
+        message.includes('unreachable');
+
+      const isPermissionError = code === 'permission-denied';
+
+      if (isOfflineError) {
+        // Try cache first
         try {
           userDoc = await getDocFromCache(docRef);
           console.log('Successfully fetched user document from cache');
-        } catch (cacheError) {
-          console.warn('Could not retrieve user document from cache', cacheError);
+        } catch {
+          // Cache miss — fall through to offline fallback below
         }
+      } else if (isPermissionError) {
+        // Brand-new Google user: their Firestore doc doesn't exist yet.
+        // The LoginForm will create it. Set user to null and let the
+        // onAuthStateChanged re-fire after setDoc completes.
+        console.warn('User doc not found or permission denied — likely a new Google sign-in user. Waiting for profile creation.');
+        // Use minimal auth-only user so the app doesn't get stuck
+        const role = isUserAdmin({ id: firebaseUser.uid, email: firebaseUser.email || undefined, role: undefined }) ? 'admin' : 'student';
+        setUser({
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
+          email: firebaseUser.email || '',
+          role,
+          avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || 'New User')}&background=random`,
+          studentId: 'Google User',
+          course: '',
+          yearLevel: '',
+        } as any);
+        setLoading(false);
+        return;
+      } else {
+        console.warn('Unexpected Firestore error fetching user doc:', error);
       }
-      
+
+      // Offline and no cache — use fallback
       if (!userDoc) {
         console.warn('Using offline fallback user configuration');
         const role = isUserAdmin({ id: firebaseUser.uid, email: firebaseUser.email || undefined, role: undefined }) ? 'admin' : 'student';
@@ -48,11 +82,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: firebaseUser.uid,
           name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Authenticated User',
           email: firebaseUser.email || '',
-          role: role,
+          role,
           avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || 'Authenticated User')}&background=random`,
           studentId: 'Offline Mode',
           course: 'Not Available',
-          yearLevel: 'Unknown'
+          yearLevel: 'Unknown',
         } as any);
         setLoading(false);
         return;
@@ -69,13 +103,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: firebaseUser.uid,
           name: data.fullName,
           email: data.schoolEmail || firebaseUser.email,
-          role: role,
-          avatar: data.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.fullName)}&background=random`,
+          role,
+          avatar: data.avatar || firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(data.fullName)}&background=random`,
           studentId: data.studentId,
           course: data.course,
-          yearLevel: data.yearLevel
+          yearLevel: data.yearLevel,
         } as any);
       } else {
+        // Doc doesn't exist yet (new Google user whose setDoc hasn't run yet)
         if (isUserAdmin({ id: firebaseUser.uid, email: firebaseUser.email || undefined, role: undefined })) {
           setUser({
             id: firebaseUser.uid,
@@ -85,14 +120,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=Admin&background=random`,
             studentId: 'ADMIN-01',
             course: 'Security',
-            yearLevel: 'Staff'
+            yearLevel: 'Staff',
           } as any);
         } else {
-          setUser(null);
+          // New user — set a minimal student profile; LoginForm's setDoc will persist it
+          setUser({
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User',
+            email: firebaseUser.email || '',
+            role: 'student',
+            avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(firebaseUser.displayName || 'New User')}&background=random`,
+            studentId: 'Google User',
+            course: '',
+            yearLevel: '',
+          } as any);
         }
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`, false);
+      console.error('Error mapping user doc to User type:', error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -127,7 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('User inactive, logging out...');
         signOut(auth);
       }
-    }, 60000); // Check every minute
+    }, 60000);
 
     return () => {
       window.removeEventListener('mousedown', handleActivity);

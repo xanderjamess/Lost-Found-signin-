@@ -409,7 +409,14 @@ export default function Dashboard({
               </h2>
               <div className="space-y-6">
                 <div className="flex items-center space-x-4">
-                  <img src={user.avatar} alt="" className="w-20 h-20 rounded-2xl object-cover border-4 border-gray-50 shadow-sm" referrerPolicy="no-referrer" />
+                  <img
+                    src={user.avatar}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    className="w-20 h-20 rounded-2xl object-cover border-4 border-gray-50 shadow-sm"
+                    referrerPolicy="no-referrer"
+                  />
                   <div>
                     <button className="text-xs font-bold text-primary hover:underline  ">Change Avatar</button>
                     <p className="text-[10px] text-muted mt-1   font-medium">JPG, PNG or GIF. Max 2MB.</p>

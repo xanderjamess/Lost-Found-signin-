@@ -28,5 +28,19 @@
       "role": "model",
       "content": "Reporting a lost item is quick and easy! Just follow these simple steps:\n1. Go to the navigation bar (Navbar) at the top of the page.\n2. Click on the 'Report' button.\n3. Select 'I Lost Something' and fill out the form. \nTip: Be as descriptive as possible! Mentioning things like brand, color, unique stickers, or the exact campus spot where you think you lost it helps us match it much faster.\nDo you need help with anything else?"
     }
+  ],
+  "ix4UARf9chRIEPmIAa3yVjB9azj2": [
+    {
+      "role": "model",
+      "content": "How can I help?"
+    },
+    {
+      "role": "user",
+      "content": "How can I claim an item?"
+    },
+    {
+      "role": "model",
+      "content": "Claiming your lost item is quick and easy! Just follow these simple steps:\n1. Go to the Search page on the portal.\n2. Find your item from the list of found belongings.\n3. Click the 'This is Mine' button.\n4. Provide Proof of Ownership (this can be a detailed description of unique markings, a photo, or an explanation of when and where you lost it). \nOnce you submit, our portal administrators (and the friendly folks at the CSC Office) will manually review your claim to make sure it gets back to its rightful owner. Keep an eye on your status!\nDo you need help with anything else today?"
+    }
   ]
 }

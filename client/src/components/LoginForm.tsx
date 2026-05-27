@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Mail, Lock, ArrowRight, Loader2, Eye, EyeOff, Hash, AlertCircle } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { collection, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
 
 interface LoginFormProps {
@@ -45,49 +45,18 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
         }
       }
 
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-
-      // Ensure we have the user's Firestore profile to check role before navigation.
-      try {
-        const uid = cred.user?.uid || auth.currentUser?.uid;
-        if (uid) {
-          const userDoc = await getDoc(doc(db, 'users', uid));
-          const roleFromDb = userDoc.exists() ? (userDoc.data() as any).role : null;
-          const emailFromAuth = cred.user?.email || auth.currentUser?.email || '';
-            if (roleFromDb === 'admin') {
-            if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
-              window.history.replaceState(null, '', '/admin');
-            }
-            return;
-          }
-          // fallback: if email matches known admin list, redirect
-          try {
-            const { isUserAdmin } = await import('../lib/admin');
-            if (isUserAdmin({ id: uid, email: emailFromAuth, role: roleFromDb })) {
-              if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
-                window.history.replaceState(null, '', '/admin');
-              }
-              return;
-            }
-          } catch (_) {
-            // ignore
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to fetch user profile after sign-in', err);
-      }
-
+      await signInWithEmailAndPassword(auth, email, password);
       onSuccess();
     } catch (err: any) {
       console.error(err);
       if (err.code === 'auth/unauthorized-domain') {
         setError(
           <>
-            This domain (<span className="font-mono bg-slate-100 px-1 rounded">{window.location.hostname}</span>) is not authorized for Firebase Auth. 
+            This domain (<span className="font-mono bg-slate-100 px-1 rounded">{window.location.hostname}</span>) is not authorized for Firebase Auth.
             Please add it in your{' '}
-            <a 
-              href="https://console.firebase.google.com/project/campus-lostandfound-2f069/authentication/settings" 
-              target="_blank" 
+            <a
+              href="https://console.firebase.google.com/project/lost-and-found-802d5/authentication/settings"
+              target="_blank"
               rel="noopener noreferrer"
               className="underline font-bold text-primary hover:text-primary/80"
             >
@@ -100,9 +69,9 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
         setError(
           <>
             Email/Password login is not enabled. Please enable it in the{' '}
-            <a 
-              href="https://console.firebase.google.com/project/campus-lostandfound-2f069/authentication/providers" 
-              target="_blank" 
+            <a
+              href="https://console.firebase.google.com/project/lost-and-found-802d5/authentication/providers"
+              target="_blank"
               rel="noopener noreferrer"
               className="underline font-bold"
             >
@@ -126,56 +95,63 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      
-      let userDoc;
+
+      // Check if user doc exists — gracefully handle permission errors for brand-new users
+      let isNewUser = false;
+      let userDocSnap: any = null;
       try {
-        userDoc = await getDoc(doc(db, 'users', result.user.uid));
-      } catch (err: any) {
-        handleFirestoreError(err, OperationType.GET, `users/${result.user.uid}`);
+        userDocSnap = await getDoc(doc(db, 'users', result.user.uid));
+        isNewUser = !userDocSnap.exists();
+      } catch {
+        isNewUser = true;
       }
 
-      if (userDoc && !userDoc.exists()) {
+      if (isNewUser) {
         try {
+          const displayName = result.user.displayName || 'Anonymous User';
           await setDoc(doc(db, 'users', result.user.uid), {
-            fullName: result.user.displayName || 'Anonymous User',
+            fullName: displayName,
             schoolEmail: result.user.email,
             studentId: 'Google User',
             role: 'student',
+            avatar:
+              result.user.photoURL ||
+              `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
             createdAt: new Date().toISOString()
           });
         } catch (err: any) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${result.user.uid}`);
+          console.warn('Could not create user profile in Firestore:', err.code || err.message);
         }
-      }
-      // After Google sign-in, check role and redirect to admin if appropriate.
-      try {
-        const uid = result.user.uid;
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        const roleFromDb = userDoc.exists() ? (userDoc.data() as any).role : null;
-        if (roleFromDb === 'admin') {
-          if (typeof window !== 'undefined' && window.location.pathname !== '/admin') {
-            window.history.replaceState(null, '', '/admin');
+      } else {
+        // Existing doc but missing avatar (common for older test users) - patch it.
+        const displayName = result.user.displayName || 'Anonymous User';
+        const avatar =
+          result.user.photoURL ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`;
+
+        const existingAvatar = userDocSnap?.data()?.avatar;
+        if (!existingAvatar) {
+          try {
+            await updateDoc(doc(db, 'users', result.user.uid), { avatar });
+          } catch (err: any) {
+            console.warn('Could not update avatar for existing user:', err.code || err.message);
           }
-          return;
         }
-      } catch (err) {
-        console.warn('Failed to fetch user profile after Google sign-in', err);
       }
 
       onSuccess();
     } catch (err: any) {
       console.error(err);
-      if (err.message && err.message.includes('{"error":')) {
-        const parsedError = JSON.parse(err.message);
-        setError(`Database Error: ${parsedError.error}. Please ensure you have an active internet connection.`);
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setError(null);
       } else if (err.code === 'auth/unauthorized-domain') {
         setError(
           <>
-            This domain (<span className="font-mono bg-slate-100 px-1 rounded">{window.location.hostname}</span>) is not authorized for Firebase Auth. 
+            This domain (<span className="font-mono bg-slate-100 px-1 rounded">{window.location.hostname}</span>) is not authorized for Firebase Auth.
             Please add it in your{' '}
-            <a 
-              href="https://console.firebase.google.com/project/campus-lostandfound-2f069/authentication/settings" 
-              target="_blank" 
+            <a
+              href="https://console.firebase.google.com/project/lost-and-found-802d5/authentication/settings"
+              target="_blank"
               rel="noopener noreferrer"
               className="underline font-bold text-primary hover:text-primary/80"
             >
@@ -188,9 +164,9 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
         setError(
           <>
             Google sign-in is not enabled. Please enable it in the{' '}
-            <a 
-              href="https://console.firebase.google.com/project/campus-lostandfound-2f069/authentication/providers" 
-              target="_blank" 
+            <a
+              href="https://console.firebase.google.com/project/lost-and-found-802d5/authentication/providers"
+              target="_blank"
               rel="noopener noreferrer"
               className="underline font-bold"
             >
@@ -201,10 +177,10 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
       } else if (err.code === 'auth/invalid-credential' || err.message?.includes('invalid-credential')) {
         setError(
           <>
-            Google sign-in failed (invalid credential). This usually happens when Google Sign-In is misconfigured, disabled, or pending configuration in your{' '}
-            <a 
-              href="https://console.firebase.google.com/project/campus-lostandfound-2f069/authentication/providers" 
-              target="_blank" 
+            Google sign-in failed. Please check your{' '}
+            <a
+              href="https://console.firebase.google.com/project/lost-and-found-802d5/authentication/providers"
+              target="_blank"
               rel="noopener noreferrer"
               className="underline font-bold text-primary hover:text-primary/80"
             >
@@ -245,7 +221,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
   if (isResetMode) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="card-pad w-full max-w-md"
@@ -262,10 +238,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
               </div>
               <h2 className="text-xl font-bold mb-2">Email Sent!</h2>
               <p className="text-muted mb-8">Please check your inbox for instructions to reset your password.</p>
-              <button 
-                onClick={() => setIsResetMode(false)}
-                className="w-full btn-primary py-4"
-              >
+              <button onClick={() => setIsResetMode(false)} className="w-full btn-primary py-4">
                 Back to Login
               </button>
             </div>
@@ -277,11 +250,11 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
                 </div>
               )}
               <div>
-                <label className="block text-[10px] font-bold text-muted mb-2  ">School Email</label>
+                <label className="block text-[10px] font-bold text-muted mb-2">School Email</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     required
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
@@ -293,10 +266,10 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
               <button disabled={isLoading} type="submit" className="w-full btn-primary py-4">
                 {isLoading ? <Loader2 className="animate-spin" size={20} /> : 'Send Reset Link'}
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => setIsResetMode(false)}
-                className="w-full text-muted hover:text-primary transition-colors text-[10px] font-bold   mt-4"
+                className="w-full text-muted hover:text-primary transition-colors text-[10px] font-bold mt-4"
               >
                 Cancel
               </button>
@@ -309,7 +282,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="card-pad w-full max-w-md"
@@ -320,9 +293,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
             type="button"
             onClick={() => setRole('student')}
             className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${
-              role === 'student'
-                ? 'bg-surface text-primary shadow-sm'
-                : 'text-muted hover:bg-surface hover:text-fg'
+              role === 'student' ? 'bg-surface text-primary shadow-sm' : 'text-muted hover:bg-surface hover:text-fg'
             }`}
           >
             Student
@@ -331,9 +302,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
             type="button"
             onClick={() => setRole('admin')}
             className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all ${
-              role === 'admin'
-                ? 'bg-surface text-accent shadow-sm'
-                : 'text-muted hover:bg-surface hover:text-fg'
+              role === 'admin' ? 'bg-surface text-accent shadow-sm' : 'text-muted hover:bg-surface hover:text-fg'
             }`}
           >
             Admin
@@ -361,17 +330,15 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-[10px] font-bold text-muted mb-2  ">
-              Email or Student ID
-            </label>
+            <label className="block text-[10px] font-bold text-muted mb-2">Email or Student ID</label>
             <div className="relative">
               {identifier.includes('@') ? (
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
               ) : (
                 <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
               )}
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
@@ -383,28 +350,26 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
 
           <div>
             <div className="flex justify-between mb-2">
-              <label className="block text-[10px] font-bold text-muted  ">
-                Password
-              </label>
-              <button 
-                type="button" 
+              <label className="block text-[10px] font-bold text-muted">Password</label>
+              <button
+                type="button"
                 onClick={() => setIsResetMode(true)}
-                className="text-[10px] font-bold text-primary hover:underline  "
+                className="text-[10px] font-bold text-primary hover:underline"
               >
                 Forgot?
               </button>
             </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" size={18} />
-              <input 
-                type={showPassword ? "text" : "password"} 
+              <input
+                type={showPassword ? 'text' : 'password'}
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="input-field pl-12 pr-12 py-3"
               />
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-muted hover:text-muted transition-colors"
@@ -415,20 +380,16 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
           </div>
 
           <div className="flex items-center">
-            <input 
-              id="remember-me" 
-              type="checkbox" 
-              className="h-4 w-4 text-primary ring-border rounded focus:ring-primary/20" 
-            />
+            <input id="remember-me" type="checkbox" className="h-4 w-4 text-primary ring-border rounded focus:ring-primary/20" />
             <label htmlFor="remember-me" className="ml-2 block text-xs text-muted font-medium">
               Remember me for 30 days
             </label>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={isLoading}
-            className={`w-full py-4 rounded-xl text-primary-fg font-bold flex items-center justify-center transition-all  ${buttonBg} disabled:opacity-70   text-sm`}
+            className={`w-full py-4 rounded-xl text-primary-fg font-bold flex items-center justify-center transition-all ${buttonBg} disabled:opacity-70 text-sm`}
           >
             {isLoading ? (
               <>
@@ -447,7 +408,7 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t ring-border"></div>
           </div>
-          <div className="relative flex justify-center text-[10px] font-bold  ">
+          <div className="relative flex justify-center text-[10px] font-bold">
             <span className="px-4 bg-surface text-muted">Or continue with</span>
           </div>
         </div>
@@ -456,42 +417,27 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
           type="button"
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="w-full py-4 rounded-xl border ring-border bg-surface hover:bg-bg transition-all flex items-center justify-center gap-3 font-bold   text-xs disabled:opacity-50"
+          className="w-full py-4 rounded-xl border ring-border bg-surface hover:bg-bg transition-all flex items-center justify-center gap-3 font-bold text-xs disabled:opacity-50"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-            />
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
           </svg>
           Google Account
         </button>
 
         <div className="mt-8 text-center space-y-4">
           <p className="text-xs text-muted font-medium">
-            Don't have an account? {' '}
-            <button 
-              onClick={onSignup}
-              className="text-primary font-bold hover:underline"
-            >
+            Don't have an account?{' '}
+            <button onClick={onSignup} className="text-primary font-bold hover:underline">
               Sign up now
             </button>
           </p>
-          <button 
+          <button
             onClick={onBack}
-            className="text-muted hover:text-primary transition-colors text-[10px] font-bold   block w-full"
+            className="text-muted hover:text-primary transition-colors text-[10px] font-bold block w-full"
           >
             ← Back to selection
           </button>
@@ -500,4 +446,3 @@ export default function LoginForm({ initialRole, onSuccess, onSignup, onBack }: 
     </div>
   );
 }
-

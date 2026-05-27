@@ -245,7 +245,14 @@ export default function ClaimedItemsHistory({
                     <td className="px-6 py-4">
                       {claimer ? (
                         <div className="flex items-center">
-                          <img src={claimer.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-50" referrerPolicy="no-referrer" />
+                          <img
+                            src={claimer.avatar}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="w-8 h-8 rounded-full object-cover border border-slate-50"
+                            referrerPolicy="no-referrer"
+                          />
                           <div className="ml-3">
                             <p className="text-xs font-bold text-slate-800">{claimer.name}</p>
                             <p className="text-[10px] text-muted">{claimer.email}</p>
