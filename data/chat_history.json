@@ -1,0 +1,46 @@
+{
+  "EWSvXRIuYpYU0PdWIV6R5GiUT6E2": [
+    {
+      "role": "model",
+      "content": "Hi! I'm your Campus Lost & Found assistant. How can I help you today?"
+    },
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "model",
+      "content": "Hi there! Welcome to the Campus E-Lost and Found. 🐾 I'm here to help you reunite with your lost belongings! \nHere is how we can get started:\n1. If you lost something: We can file a report to keep an eye out for it.\n2. If you found something: We can register it and get it safely to the CSC Office.\n3. If you want to claim an item: We can search the database and submit a claim.\nHow can I help you today? Do you need help with anything else?"
+    },
+    {
+      "role": "user",
+      "content": "okay"
+    },
+    {
+      "role": "model",
+      "content": "Great! Whenever you're ready, just let me know what you'd like to do. \nAre you looking for a lost item, or did you find something on campus? Let me know, or tell me if you need help with anything else!"
+    },
+    {
+      "role": "user",
+      "content": "How do I report a lost item?"
+    },
+    {
+      "role": "model",
+      "content": "Reporting a lost item is quick and easy! Just follow these simple steps:\n1. Go to the navigation bar (Navbar) at the top of the page.\n2. Click on the 'Report' button.\n3. Select 'I Lost Something' and fill out the form. \nTip: Be as descriptive as possible! Mentioning things like brand, color, unique stickers, or the exact campus spot where you think you lost it helps us match it much faster.\nDo you need help with anything else?"
+    }
+  ],
+  "ix4UARf9chRIEPmIAa3yVjB9azj2": [
+    {
+      "role": "model",
+      "content": "How can I help?"
+    },
+    {
+      "role": "user",
+      "content": "How can I claim an item?"
+    },
+    {
+      "role": "model",
+      "content": "Claiming your lost item is quick and easy! Just follow these simple steps:\n1. Go to the Search page on the portal.\n2. Find your item from the list of found belongings.\n3. Click the 'This is Mine' button.\n4. Provide Proof of Ownership (this can be a detailed description of unique markings, a photo, or an explanation of when and where you lost it). \nOnce you submit, our portal administrators (and the friendly folks at the CSC Office) will manually review your claim to make sure it gets back to its rightful owner. Keep an eye on your status!\nDo you need help with anything else today?"
+    }
+  ]
+}
